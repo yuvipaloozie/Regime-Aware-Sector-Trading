@@ -1,21 +1,42 @@
-# Regime Based Sector Rotation Using HMMs and XGBRanker
+# Quantitative Sector Rotation via Stabilized Unsupervised Macro Regime Modeling
 
-An end-to-end automated data pipeline and predictive modeling framework that identifies macroeconomic macro-states (regimes) and dynamically updates structural allocation across economic sectors. 
-
-This project bridges data engineering, unsupervised state modeling, and predictive analytics to simulate an enterprise-grade automated execution engine.
+This repository contains an end-to-end automated data pipeline, predictive modeling framework, and execution simulator designed to implement a macro-regime-aware sector rotation investment strategy. The system models underlying market states using unsupervised learning and maps these states to cross-sectional sector alphas, mitigating common quantitative trading vulnerabilities such as state inversion and look-ahead bias.
 
 ---
 
-## The Systemic Engineering Challenge
+## Strategy Motivation and Framework Design
 
-Many machine learning applications fail in dynamic environments because underlying data distributions shift unexpectedly. In manufacturing plants, a distillation column shifts behaviors based on throughput states; similarly, financial markets shift baseline behaviors based on macroeconomic conditions. 
+Financial time-series data is inherently non-stationary, meaning its underlying statistical properties (mean, variance, and covariance) shift over time across structural market environments. Standard linear models and unconditional machine learning estimators often degrade when baseline distributions alter due to macro fluctuations. 
 
-### Core Engineering Inversions Solved:
-1. **Dynamic State Destabilization (Label-Switching):** Unsupervised models like Hidden Markov Models (HMMs) classify conditions without a predefined scale. Across different training windows, "State 0" might arbitrarily flip from representing "Low Volatility" to "High Volatility," breaking downstream scoring logic.
-2. **Temporal Feature Leakage:** Standard global feature scaling injects future parameters (mean/variance) into historical training arrays. This framework strictly partitions rolling window parameters to guarantee out-of-sample mathematical validity.
-Technical Component Details
-Ingestion Engine (src/pipeline_ingest.py)
-Provides concurrent API connectors to capture historical data arrays. It isolates web errors, manages rate limits, and structures raw multi-frequency files down into clean local cache tensors.
+To address this, this framework employs a two-stage paradigm:
+1. **Unsupervised Regime Identification:** Identifying latent macroeconomic states (e.g., expansionary low-volatility, contractive high-volatility) using hidden physical state spaces.
+2. **Conditional Sector Allocation:** Over-weighting or under-weighting sector-specific assets based on forward-looking cross-sectional return expectations computed conditionally for the current active macro state.
 
-DataIngestor: Orchestrates downloads for the designated macro features and sector tracking tickers outlined in the configuration layers.
 ---
+
+## Pipeline Overview
+
+The transition from exploratory research to an enterprise design is split across two core phases within the research environment:
+
+* **Stage 1: Macro Regime Modeling (`Regime_Classifier.ipynb`):** Pulls continuous economic data (such as market volatility indices and macroeconomic proxies), transforms inputs into stationary representations, and runs an unsupervised Hidden Markov Model (HMM) to partition history into distinct operational regimes.
+* **Stage 2: Conditional Sector Strategy (`Sector_Rotation_Strategy.ipynb`):** Aligns the extracted regime vector with the cross-sectional asset universe. It trains state-conditional linear and ensemble models to predict relative sector outperformance and executes a simulated rolling-window transaction ledger.
+
+---
+
+## System Architecture
+
+The codebase separates concerns across a modular package structure to ensure maintainability, testing isolation, and readiness for automated execution environments (e.g., cloud cron scheduling).
+
+```text
+regime_sector_rotation/
+├── config/
+│   └── settings.yaml          # Hyperparameters, structural features, and asset definitions
+├── data/                      # Local data caching layer (Git-ignored)
+├── src/                       # Structural Core Package
+│   ├── pipeline_ingest.py     # Concurrent data harvesting from FRED and Yahoo Finance
+│   ├── features.py            # Stream-isolated transformation and normalization modules
+│   ├── model_hmm.py           # Custom state-stabilized Hidden Markov Estimator
+│   ├── model_strategy.py      # Conditional scoring and portfolio allocation logic
+│   └── backtester.py          # Vector accounting and operational performance profiling
+├── main.py                    # Production execution pipeline engine
+└── app.py                     # Telemetry interface and trade ledger visualizer
