@@ -1,0 +1,64 @@
+# Tickers Universe
+sectors:
+  - XLK
+  - XLE
+  - XLF
+  - XLV
+  - XLI
+  - XLY
+  - XLP
+  - XLU
+  - XLB
+  - XLC
+  - XLRE
+
+proxies:
+  XLC: VOX
+  XLRE: VNQ
+
+benchmarks:
+  equity: SPY
+  volatility: ^VIX
+  yield_10y: ^TNX
+  safe_haven: TLT
+
+fred_indicators:
+  - T10Y2Y      # 10-Year Treasury Constant Maturity Minus 2-Year Treasury Constant Maturity
+  - STLFSI4     # St. Louis Fed Financial Stress Index
+  - CPIAUCSL    # Consumer Price Index for All Urban Consumers: All Items
+
+# Ingestion Settings
+dates:
+  start: "1998-01-01"
+  end: "today"
+  strategy_start: "2003-01-01"  # accommodates TLT inception
+
+# HMM Model Parameters
+hmm:
+  n_components: 4
+  covariance_type: diag
+  n_iter: 1000
+  random_state: 42
+  window_size: 260   # 5 years of weekly data
+  step_size: 4       # monthly retraining
+  vix_idx: 1         # Index of VIX_Level in features_to_use
+
+# XGBRanker Model Parameters
+xgboost:
+  learning_rate: 0.05
+  max_depth: 3
+  n_estimators: 150
+  subsample: 0.8
+  colsample_bytree: 0.8
+  random_state: 42
+  purge_weeks: 4
+  step_weeks: 4
+  min_train_weeks: 260
+
+# Strategy Portfolio Execution Settings
+portfolio:
+  top_n: 2
+  buffer: 1
+  slippage_bps: 0.0005
+  risk_free_rate_weekly: 0.000769  # approx 4% annual / 52
+  initial_cash: 100000.0

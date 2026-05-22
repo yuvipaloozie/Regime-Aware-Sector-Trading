@@ -1,0 +1,24 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# OS / System Files
+.DS_Store
+Thumbs.db
+
+# Virtual Environments
+venv/
+.venv/
+env/
+
+# IDE / Editor folders
+.vscode/
+.idea/
+
+# Streamlit logs/cache
+.streamlit/cache/
+
+# Local raw data cache (ignore raw downloads, keep processed data/trade_log for instant rendering)
+data/raw/
+.pytest_cache/

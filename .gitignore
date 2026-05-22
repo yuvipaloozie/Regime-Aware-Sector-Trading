@@ -1,0 +1,27 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# OS / System Files
+.DS_Store
+Thumbs.db
+
+# Virtual Environments
+venv/
+.venv/
+env/
+
+# IDE / Editor folders
+.vscode/
+.idea/
+
+# Local scratch directories & scripts to ignore
+Notebooks/
+notebooks/
+scratch/
+extract_notebooks.py
+
+# Local raw data cache inside regime_sector_rotation
+regime_sector_rotation/data/raw/
+.pytest_cache/
