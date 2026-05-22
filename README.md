@@ -10,7 +10,7 @@
   ![Domain](https://img.shields.io/badge/Domain-Quantitative_Finance-red?style=for-the-badge)
   
 ## Summary
-This project challenges the standard static "buy-and-hold" portfolio baseline by dynamically shifting capital based on macroeconomic conditions. It benchmarks an unsupervised Hidden Markov Model (HMM) framework against static allocations, utilizing strict data engineering pipelines to prevent the common quantitative pitfalls of look-ahead bias and model state-inversion. 
+This project challenges the standard static "buy-and-hold" portfolio baseline by dynamically shifting capital based on macroeconomic conditions. It benchmarks an unsupervised Hidden Markov Model (HMM) framework against static allocations, utilizing strict data engineering pipelines to prevent the common quantitative pitfalls of look-ahead bias and model state-inversion. To visualize and interact with the algorithms performance in-market, you can explore more at https://regime-aware-sector-trading.streamlit.app/.
 
 **Hypothesis:** A trading strategy grounded in unsupervised macro-regime identification can conditionally allocate sector weights to improve risk-adjusted returns (Sharpe Ratio) and reduce maximum drawdowns, provided the underlying ML pipeline mathematically enforces state stability across rolling windows.
 
