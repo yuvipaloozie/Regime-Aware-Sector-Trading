@@ -13,20 +13,9 @@ Many machine learning applications fail in dynamic environments because underlyi
 ### Core Engineering Inversions Solved:
 1. **Dynamic State Destabilization (Label-Switching):** Unsupervised models like Hidden Markov Models (HMMs) classify conditions without a predefined scale. Across different training windows, "State 0" might arbitrarily flip from representing "Low Volatility" to "High Volatility," breaking downstream scoring logic.
 2. **Temporal Feature Leakage:** Standard global feature scaling injects future parameters (mean/variance) into historical training arrays. This framework strictly partitions rolling window parameters to guarantee out-of-sample mathematical validity.
-[Inbound Market / Macro Ingestion]
-                │
-                ▼
-  [Stationary Transforms & Scaling]  <── Fit parameters bounded by rolling windows
-                │
-                ▼
-    [StableGaussianHMM Inference]    <── Volatility-anchored state sorting
-                │
-                ▼
-  [State-Conditional Alpha Model]    <── Sectional predictive scoring
-                │
-                ▼
-   [Portfolio Weight Optimization]   <── Rebalance constraint checks
-                │
-                ▼
-    [Append-Only Trade Ledger]      <── Execution logging to CSV / UI
+Technical Component Details
+Ingestion Engine (src/pipeline_ingest.py)
+Provides concurrent API connectors to capture historical data arrays. It isolates web errors, manages rate limits, and structures raw multi-frequency files down into clean local cache tensors.
+
+DataIngestor: Orchestrates downloads for the designated macro features and sector tracking tickers outlined in the configuration layers.
 ---
