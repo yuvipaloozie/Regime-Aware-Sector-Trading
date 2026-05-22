@@ -186,8 +186,10 @@ def execute_orchestration(weeks=26, force_refresh=False):
         'Benchmark': backtest['cum_benchmark']
     })
     df_backtest_equity.index.name = 'Date'
-    os.makedirs("data", exist_ok=True)
-    df_backtest_equity.to_csv("data/backtest_equity.csv")
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    data_dir = os.path.join(current_dir, "data")
+    os.makedirs(data_dir, exist_ok=True)
+    df_backtest_equity.to_csv(os.path.join(data_dir, "backtest_equity.csv"))
     
     # 9. Simulated Trade Manager Simulation
     # Run a chronological weekly simulation over the requested final weeks
@@ -203,7 +205,7 @@ def execute_orchestration(weeks=26, force_refresh=False):
     spy_start_price = spy_df.loc[sim_dates[0]]
     
     # Clean previous logs to keep it a fresh walkthrough
-    log_path = "data/trade_log.csv"
+    log_path = os.path.join(data_dir, "trade_log.csv")
     if os.path.exists(log_path):
         os.remove(log_path)
         

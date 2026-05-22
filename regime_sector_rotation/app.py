@@ -114,8 +114,9 @@ st.markdown("""
 # --- Title Section ---
 st.title("Regime-Aware Sector Rotation Terminal")
 
-LOG_PATH = "data/trade_log.csv"
-BACKTEST_EQ_PATH = "data/backtest_equity.csv"
+current_dir = os.path.dirname(os.path.abspath(__file__))
+LOG_PATH = os.path.join(current_dir, "data", "trade_log.csv")
+BACKTEST_EQ_PATH = os.path.join(current_dir, "data", "backtest_equity.csv")
 
 # Dict mapping HMM states to structured, technical visual styles & details
 REGIME_DETAILS = {
