@@ -3,7 +3,6 @@ import yaml
 import numpy as np
 import pandas as pd
 import yfinance as yf
-import pandas_datareader.data as web
 from datetime import datetime
 
 def load_config(config_path=None):
@@ -194,13 +193,30 @@ class DataPipeline:
             df.index = pd.to_datetime(df.index)
             return df.loc[start_date:end_date]
             
-        # 2. Try FRED DataReader
+        # 2. Try Direct FRED Downloads
         try:
-            df_fred = web.DataReader(fred_ids, 'fred', start_date, end_date)
-            if df_fred.empty or len(df_fred) < 10:
-                raise ValueError("FRED DataReader returned empty or insufficient data.")
+            dfs = []
+            for fid in fred_ids:
+                url = f"https://fred.stlouisfed.org/graph/fredgraph.csv?id={fid}"
+                df = pd.read_csv(url)
+                df['observation_date'] = pd.to_datetime(df['observation_date'])
+                df = df.set_index('observation_date')
+                df.index.name = 'Date'
+                df[fid] = pd.to_numeric(df[fid].replace('.', np.nan), errors='coerce')
+                dfs.append(df)
                 
-            df_fred.index = pd.to_datetime(df_fred.index)
+            if not dfs:
+                raise ValueError("No FRED data could be downloaded.")
+                
+            df_fred = pd.concat(dfs, axis=1)
+            df_fred.index.name = 'Date'
+            
+            # Slice by requested date range
+            df_fred = df_fred.loc[start_date:end_date]
+            
+            if df_fred.empty or len(df_fred) < 10:
+                raise ValueError("FRED data is empty or insufficient.")
+                
             df_fred.to_csv(cache_path)
             return df_fred
         except Exception as e:
@@ -213,6 +229,7 @@ class DataPipeline:
             df_synthetic.index = pd.to_datetime(df_synthetic.index)
             df_synthetic.to_csv(cache_path)
             return df_synthetic
+
 
     def get_processed_data(self, start_date=None, end_date=None):
         """

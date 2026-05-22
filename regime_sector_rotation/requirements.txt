@@ -9,5 +9,5 @@ pyyaml>=6.0
 yfinance>=0.2.20
 scikit-learn>=1.2.0
 tqdm>=4.65.0
-pandas-datareader>=0.10.0
+
 
