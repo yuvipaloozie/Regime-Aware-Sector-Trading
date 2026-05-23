@@ -431,16 +431,21 @@ else:
             st.markdown("<span style='font-size: 11px; font-weight: 600; text-transform: uppercase; color: #888888;'>AI Strategy Assistant</span>", unsafe_allow_html=True)
             st.markdown("<h4 style='margin-top: 2px; margin-bottom: 10px;'>Local Quantitative Justification</h4>", unsafe_allow_html=True)
             
-            # Check if local Ollama is active
+            # Check if local Ollama is active and pick the best available model
             ollama_online = False
-            OLLAMA_MODEL = "phi:latest"
+            available_models = []
+            selected_model = None
+            
             try:
-                # 1.0 second timeout to avoid startup lag
                 res_tags = requests.get("http://localhost:11434/api/tags", timeout=1.0)
                 if res_tags.status_code == 200:
-                    models = [m.get("name") for m in res_tags.json().get("models", [])]
-                    if any("phi" in m for m in models):
-                        ollama_online = True
+                    available_models = [m.get("name") for m in res_tags.json().get("models", [])]
+                    # Prioritize models: DeepSeek Reasoning first, Qwen secondary, Phi last
+                    for m in ["deepseek-r1:8b", "qwen3.5:latest", "phi:latest"]:
+                        if any(m in model_name for model_name in available_models):
+                            selected_model = m
+                            ollama_online = True
+                            break
             except Exception:
                 pass
                 
@@ -449,45 +454,61 @@ else:
                 if session_key not in st.session_state:
                     st.session_state[session_key] = None
                     
-                # Setup prompt
+                # Setup details
                 holdings_list = []
                 for _, r in df_curr_alloc.iterrows():
                     if r['Vol'] > 0:
-                        holdings_list.append(f" - {r['Asset']}: {r['Vol']*100:.1f}%")
+                        holdings_list.append(f"- {r['Asset']}: {r['Vol']*100:.1f}%")
                 if cash_weight > 0.001:
-                    holdings_list.append(f" - CASH/TLT (Risk-off Defense): {cash_weight*100:.1f}%")
+                    holdings_list.append(f"- CASH/TLT (Risk-off Defense): {cash_weight*100:.1f}%")
                 holdings_summary = "\n".join(holdings_list)
                 
                 regime_name = REGIME_DETAILS.get(sel_regime, {}).get("name", f"State {sel_regime}")
                 regime_desc = REGIME_DETAILS.get(sel_regime, {}).get("desc", "")
                 
+                # Highly structured, strict formatting prompt
                 prompt = f"""
-You are an expert Quant Strategy Research Assistant.
-Analyze the following sector rotation strategy allocation decision made by our machine learning models on {selected_date}:
+You are an institutional Quant Portfolio Manager.
+Analyze the following sector rotation allocation made by our machine learning models on the rebalance week of {selected_date}:
 
-1. Market Context:
-- Current Economic Regime: {regime_name} ({regime_desc})
-- Risk Exposure Level: {sel_risk_scalar * 100:.0f}% (Defensive cash/TLT allocation: {(1 - sel_risk_scalar) * 100:.0f}%)
+1. Quantitative Regime & Market Context:
+- Active Regime: {regime_name}
+- Regime Characteristics: {regime_desc}
+- Risk Scalar: {sel_risk_scalar} (Allows {sel_risk_scalar * 100:.0f}% exposure to risky sector assets, forces {(1 - sel_risk_scalar) * 100:.0f}% defense)
 
-2. Selected Portfolio Sizing & Holdings:
+2. Model Target Portfolio Sizing:
 {holdings_summary}
 
-Based on the quantitative features and allocations shown above, explain semantically why these sector choices and defensive rotation decisions make logical sense. Keep your answer highly professional, concise (2-3 paragraphs), and technically grounded in financial economics (e.g. defensiveness of sectors, interest rate sensitivity, growth vs value rotation, or volatility anchoring). Do not mention that you are an AI or language model.
+Task: Write a highly structured, brief semantic justification explaining why this allocation make logical sense based on quantitative finance principles.
+Strictly adhere to the following markdown template. Keep explanations extremely brief and concise (1-2 sentences per bullet). Do not add any conversational text or preambles.
+
+### [REBALANCE DATE: {selected_date}]
+
+- **Regime Justification**: Explain why the active regime ({regime_name}) justifies the current risk-on/risk-off exposure scale ({sel_risk_scalar * 100:.0f}%).
+- **Sector Rotation Justification**: Semantic explanation of why the selected sectors makes logical sense to overweight during this macro environment (focus on sector attributes like momentum, rates, cyclicality vs defensiveness).
+- **Defensive Sizing Justification**: Explain why the cash/TLT defense allocation is sized exactly at {(1 - sel_risk_scalar) * 100:.0f}% for this state.
 """
                 
                 # Show Generate button or cached response
                 if st.session_state[session_key] is None:
                     if st.button("Generate AI Justification", key=f"btn_{selected_date}"):
-                        with st.spinner("phi:latest is analyzing market regime & allocations..."):
+                        with st.spinner(f"{selected_model} is generating structured analysis..."):
                             payload = {
-                                "model": OLLAMA_MODEL,
+                                "model": selected_model,
                                 "prompt": prompt,
                                 "stream": False
                             }
                             try:
-                                res = requests.post("http://localhost:11434/api/generate", json=payload, timeout=45)
+                                res = requests.post("http://localhost:11434/api/generate", json=payload, timeout=90)
                                 if res.status_code == 200:
-                                    st.session_state[session_key] = res.json().get("response", "")
+                                    response_text = res.json().get("response", "")
+                                    
+                                    # DeepSeek reasoning cleanup (strip out <think> tags if present to keep UI clean)
+                                    if "<think>" in response_text and "</think>" in response_text:
+                                        parts = response_text.split("</think>")
+                                        response_text = parts[-1].strip()
+                                        
+                                    st.session_state[session_key] = response_text
                                     st.rerun()
                                 else:
                                     st.error(f"Ollama returned error: {res.status_code}")
@@ -495,12 +516,14 @@ Based on the quantitative features and allocations shown above, explain semantic
                                 st.error(f"Connection error to Ollama: {e}")
                 else:
                     st.markdown(f"""
-                    <div style='background-color: #080808; border: 1px solid #1a1a1a; padding: 15px; border-radius: 4px; margin-top: 10px;'>
-                        <div style='font-size: 10px; font-weight: 600; text-transform: uppercase; color: #10b981; margin-bottom: 8px; display: flex; justify-content: space-between;'>
-                            <span>AI Quant Explanation (phi:latest)</span>
+                    <div style='background-color: #080808; border: 1px solid #1a1a1a; padding: 18px; border-radius: 4px; margin-top: 10px;'>
+                        <div style='font-size: 10px; font-weight: 600; text-transform: uppercase; color: #10b981; margin-bottom: 12px; display: flex; justify-content: space-between;'>
+                            <span>AI Quant Explanation ({selected_model})</span>
                             <span style='color: #888888;'>Cached</span>
                         </div>
-                        <div style='font-size: 13px; line-height: 1.5; color: #dddddd;'>{st.session_state[session_key]}</div>
+                        <div style='font-size: 13px; line-height: 1.6; color: #dddddd; font-family: "Inter", sans-serif;'>
+                            {st.session_state[session_key]}
+                        </div>
                     </div>
                     """, unsafe_allow_html=True)
                     if st.button("Regenerate Justification", key=f"regen_{selected_date}"):
@@ -510,7 +533,7 @@ Based on the quantitative features and allocations shown above, explain semantic
                 st.markdown("""
                 <div style='background-color: #080808; border: 1px dashed #1a1a1a; padding: 12px; border-radius: 4px; text-align: center; color: #888888; font-size: 12px; margin-top: 10px;'>
                     Local AI Assistant Offline <br>
-                    <span style='font-size: 10px; color: #666666;'>To enable local explanations, run Ollama locally with <code>phi:latest</code> installed.</span>
+                    <span style='font-size: 10px; color: #666666;'>To enable local explanations, run Ollama locally with <code>deepseek-r1:8b</code> or <code>phi:latest</code> installed.</span>
                 </div>
                 """, unsafe_allow_html=True)
         else:
