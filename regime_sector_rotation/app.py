@@ -425,117 +425,6 @@ else:
                 marker=dict(line=dict(color='#000000', width=1.5))
             )
             st.plotly_chart(fig_pie, use_container_width=True)
-            
-            # --- AI Quant Assistant (Ollama Local Integration) ---
-            st.markdown("<hr style='border: 1px solid #111111; margin: 15px 0;'>", unsafe_allow_html=True)
-            st.markdown("<span style='font-size: 11px; font-weight: 600; text-transform: uppercase; color: #888888;'>AI Strategy Assistant</span>", unsafe_allow_html=True)
-            st.markdown("<h4 style='margin-top: 2px; margin-bottom: 10px;'>Local Quantitative Justification</h4>", unsafe_allow_html=True)
-            
-            # Check if local Ollama is active and pick the best available model
-            ollama_online = False
-            available_models = []
-            selected_model = None
-            
-            try:
-                res_tags = requests.get("http://localhost:11434/api/tags", timeout=1.0)
-                if res_tags.status_code == 200:
-                    available_models = [m.get("name") for m in res_tags.json().get("models", [])]
-                    # Prioritize models: DeepSeek Reasoning first, Qwen secondary, Phi last
-                    for m in ["deepseek-r1:8b", "qwen3.5:latest", "phi:latest"]:
-                        if any(m in model_name for model_name in available_models):
-                            selected_model = m
-                            ollama_online = True
-                            break
-            except Exception:
-                pass
-                
-            if ollama_online:
-                session_key = f"ai_justification_{selected_date}"
-                if session_key not in st.session_state:
-                    st.session_state[session_key] = None
-                    
-                # Setup details
-                holdings_list = []
-                for _, r in df_curr_alloc.iterrows():
-                    if r['Vol'] > 0:
-                        holdings_list.append(f"- {r['Asset']}: {r['Vol']*100:.1f}%")
-                if cash_weight > 0.001:
-                    holdings_list.append(f"- CASH/TLT (Risk-off Defense): {cash_weight*100:.1f}%")
-                holdings_summary = "\n".join(holdings_list)
-                
-                regime_name = REGIME_DETAILS.get(sel_regime, {}).get("name", f"State {sel_regime}")
-                regime_desc = REGIME_DETAILS.get(sel_regime, {}).get("desc", "")
-                
-                # Highly structured, strict formatting prompt
-                prompt = f"""
-You are an institutional Quant Portfolio Manager.
-Analyze the following sector rotation allocation made by our machine learning models on the rebalance week of {selected_date}:
-
-1. Quantitative Regime & Market Context:
-- Active Regime: {regime_name}
-- Regime Characteristics: {regime_desc}
-- Risk Scalar: {sel_risk_scalar} (Allows {sel_risk_scalar * 100:.0f}% exposure to risky sector assets, forces {(1 - sel_risk_scalar) * 100:.0f}% defense)
-
-2. Model Target Portfolio Sizing:
-{holdings_summary}
-
-Task: Write a highly structured, brief semantic justification explaining why this allocation make logical sense based on quantitative finance principles.
-Strictly adhere to the following markdown template. Keep explanations extremely brief and concise (1-2 sentences per bullet). Do not add any conversational text or preambles.
-
-### [REBALANCE DATE: {selected_date}]
-
-- **Regime Justification**: Explain why the active regime ({regime_name}) justifies the current risk-on/risk-off exposure scale ({sel_risk_scalar * 100:.0f}%).
-- **Sector Rotation Justification**: Semantic explanation of why the selected sectors makes logical sense to overweight during this macro environment (focus on sector attributes like momentum, rates, cyclicality vs defensiveness).
-- **Defensive Sizing Justification**: Explain why the cash/TLT defense allocation is sized exactly at {(1 - sel_risk_scalar) * 100:.0f}% for this state.
-"""
-                
-                # Show Generate button or cached response
-                if st.session_state[session_key] is None:
-                    if st.button("Generate AI Justification", key=f"btn_{selected_date}"):
-                        with st.spinner(f"{selected_model} is generating structured analysis..."):
-                            payload = {
-                                "model": selected_model,
-                                "prompt": prompt,
-                                "stream": False
-                            }
-                            try:
-                                res = requests.post("http://localhost:11434/api/generate", json=payload, timeout=90)
-                                if res.status_code == 200:
-                                    response_text = res.json().get("response", "")
-                                    
-                                    # DeepSeek reasoning cleanup (strip out <think> tags if present to keep UI clean)
-                                    if "<think>" in response_text and "</think>" in response_text:
-                                        parts = response_text.split("</think>")
-                                        response_text = parts[-1].strip()
-                                        
-                                    st.session_state[session_key] = response_text
-                                    st.rerun()
-                                else:
-                                    st.error(f"Ollama returned error: {res.status_code}")
-                            except Exception as e:
-                                st.error(f"Connection error to Ollama: {e}")
-                else:
-                    st.markdown(f"""
-                    <div style='background-color: #080808; border: 1px solid #1a1a1a; padding: 18px; border-radius: 4px; margin-top: 10px;'>
-                        <div style='font-size: 10px; font-weight: 600; text-transform: uppercase; color: #10b981; margin-bottom: 12px; display: flex; justify-content: space-between;'>
-                            <span>AI Quant Explanation ({selected_model})</span>
-                            <span style='color: #888888;'>Cached</span>
-                        </div>
-                        <div style='font-size: 13px; line-height: 1.6; color: #dddddd; font-family: "Inter", sans-serif;'>
-                            {st.session_state[session_key]}
-                        </div>
-                    </div>
-                    """, unsafe_allow_html=True)
-                    if st.button("Regenerate Justification", key=f"regen_{selected_date}"):
-                        st.session_state[session_key] = None
-                        st.rerun()
-            else:
-                st.markdown("""
-                <div style='background-color: #080808; border: 1px dashed #1a1a1a; padding: 12px; border-radius: 4px; text-align: center; color: #888888; font-size: 12px; margin-top: 10px;'>
-                    Local AI Assistant Offline <br>
-                    <span style='font-size: 10px; color: #666666;'>To enable local explanations, run Ollama locally with <code>deepseek-r1:8b</code> or <code>phi:latest</code> installed.</span>
-                </div>
-                """, unsafe_allow_html=True)
         else:
             st.info("No active allocation metrics logged yet.")
 
@@ -597,6 +486,71 @@ Strictly adhere to the following markdown template. Keep explanations extremely 
         else:
             st.info("No historical backtest equity log found.")
             
+    # --- Middle Section: Historical Sector Weightings Rotation (FULL BACKTEST) ---
+    st.write("---")
+    st.subheader("Historical Sector Weightings Rotation")
+    
+    BACKTEST_WEIGHTS_PATH = os.path.join(current_dir, "data", "backtest_weights.csv")
+    if os.path.exists(BACKTEST_WEIGHTS_PATH):
+        df_bw = pd.read_csv(BACKTEST_WEIGHTS_PATH)
+        df_bw['Date'] = pd.to_datetime(df_bw['Date'])
+        df_bw = df_bw.sort_values('Date')
+        
+        # Get list of sector columns (excluding 'Date')
+        sector_cols = [col for col in df_bw.columns if col != 'Date']
+        
+        # Multiselect for sectors to display
+        selected_sectors = st.multiselect(
+            "Select Sectors to View Historical Weightings (2014-Present):",
+            options=sector_cols,
+            default=['XLK', 'XLF', 'XLY', 'TLT']
+        )
+        
+        if selected_sectors:
+            fig_weights = go.Figure()
+            
+            # Palette for the weight chart
+            weight_colors = {
+                'XLK': '#10b981', 'XLF': '#3b82f6', 'XLY': '#f59e0b', 'XLE': '#ef4444', 
+                'XLV': '#ec4899', 'XLI': '#8b5cf6', 'XLP': '#6b7280', 'XLU': '#14b8a6', 
+                'XLB': '#f97316', 'XLC': '#84cc16', 'XLRE': '#06b6d4', 'TLT': '#ffffff'
+            }
+            
+            for col in selected_sectors:
+                color = weight_colors.get(col, None)
+                fig_weights.add_trace(go.Scatter(
+                    x=df_bw['Date'],
+                    y=df_bw[col] * 100.0, # percentage weight
+                    mode='lines',
+                    name=col,
+                    line=dict(width=2, color=color)
+                ))
+                
+            fig_weights.update_layout(
+                title="Historical Model Allocation Weights over the Backtest Horizon (2014-Present)",
+                xaxis_title="Date",
+                yaxis_title="Allocation Weight (%)",
+                paper_bgcolor='#000000',
+                plot_bgcolor='#000000',
+                font=dict(color='#ffffff', family='Inter'),
+                legend=dict(
+                    orientation="h",
+                    yanchor="bottom",
+                    y=1.02,
+                    xanchor="right",
+                    x=1
+                ),
+                xaxis=dict(showgrid=True, gridcolor='#111111', linecolor='#222222'),
+                yaxis=dict(showgrid=True, gridcolor='#111111', linecolor='#222222', range=[-5, 105]),
+                margin=dict(t=50, b=20, l=10, r=10),
+                height=300
+            )
+            st.plotly_chart(fig_weights, use_container_width=True)
+        else:
+            st.info("Select one or more sectors from the multiselect dropdown above to view weight history.")
+    else:
+        st.info("No historical backtest weightings log found.")
+        
     st.write("---")
     
     # --- Bottom Section: Transaction Ledger ---

@@ -191,6 +191,9 @@ def execute_orchestration(weeks=26, force_refresh=False):
     os.makedirs(data_dir, exist_ok=True)
     df_backtest_equity.to_csv(os.path.join(data_dir, "backtest_equity.csv"))
     
+    # Save the entire backtest sector weightings history
+    weight_matrix.to_csv(os.path.join(data_dir, "backtest_weights.csv"))
+    
     # 9. Simulated Trade Manager Simulation
     # Run a chronological weekly simulation over the requested final weeks
     sim_weeks = min(weeks, len(weight_matrix))
