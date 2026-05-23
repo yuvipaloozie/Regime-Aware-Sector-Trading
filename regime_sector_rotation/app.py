@@ -154,6 +154,37 @@ else:
     # 4. Parse Regime Metrics Rows
     df_regime = df[(df['Asset'] == 'REGIME_METRIC') & (df['Action'] == 'STATE')].copy()
     
+    # 5. Load full backtest equity curve and calculate advanced metrics
+    df_be = None
+    adv_metrics = None
+    if os.path.exists(BACKTEST_EQ_PATH):
+        df_be = pd.read_csv(BACKTEST_EQ_PATH)
+        df_be['Date'] = pd.to_datetime(df_be['Date'])
+        df_be = df_be.sort_values('Date')
+        
+        if not df_be.empty:
+            strat_ret_be = df_be['Strategy'].pct_change().dropna()
+            ann_factor = 52 # Weekly returns
+            
+            strat_vol = strat_ret_be.std() * np.sqrt(ann_factor)
+            strat_ann_ret = strat_ret_be.mean() * ann_factor
+            strat_sharpe = strat_ann_ret / strat_vol if strat_vol != 0 else 0
+            
+            strat_downside = strat_ret_be[strat_ret_be < 0]
+            strat_downside_std = strat_downside.std() * np.sqrt(ann_factor) if len(strat_downside) > 0 else 0
+            strat_sortino = strat_ann_ret / strat_downside_std if strat_downside_std != 0 else 0
+            
+            strat_peak = df_be['Strategy'].cummax()
+            strat_dd = (df_be['Strategy'] / strat_peak) - 1
+            strat_max_dd = strat_dd.min() * 100
+            
+            adv_metrics = {
+                'sharpe': strat_sharpe,
+                'sortino': strat_sortino,
+                'max_dd': strat_max_dd,
+                'vol': strat_vol * 100
+            }
+    
     # --- Live System Signals Header (CURRENT / LATEST DATE) ---
     if not df_alloc.empty:
         latest_date = df_alloc['Timestamp'].max()
@@ -277,6 +308,38 @@ else:
                 <div class='metric-value' style='color: {color};'>{spy_ret:+.2f}%</div>
             </div>
             """, unsafe_allow_html=True)
+            
+        if adv_metrics is not None:
+            st.markdown("<div style='margin-top: 10px;'></div>", unsafe_allow_html=True)
+            k5, k6, k7, k8 = st.columns(4)
+            with k5:
+                st.markdown(f"""
+                <div class='metric-card'>
+                    <div class='metric-label'>ANNUAL SHARPE RATIO</div>
+                    <div class='metric-value' style='color: #ffffff;'>{adv_metrics['sharpe']:.2f}</div>
+                </div>
+                """, unsafe_allow_html=True)
+            with k6:
+                st.markdown(f"""
+                <div class='metric-card'>
+                    <div class='metric-label'>ANNUAL SORTINO RATIO</div>
+                    <div class='metric-value' style='color: #ffffff;'>{adv_metrics['sortino']:.2f}</div>
+                </div>
+                """, unsafe_allow_html=True)
+            with k7:
+                st.markdown(f"""
+                <div class='metric-card'>
+                    <div class='metric-label'>MAX HISTORICAL DRAWDOWN</div>
+                    <div class='metric-value' style='color: #ef4444;'>{adv_metrics['max_dd']:.2f}%</div>
+                </div>
+                """, unsafe_allow_html=True)
+            with k8:
+                st.markdown(f"""
+                <div class='metric-card'>
+                    <div class='metric-label'>ANNUALIZED VOLATILITY</div>
+                    <div class='metric-value' style='color: #ffffff;'>{adv_metrics['vol']:.2f}%</div>
+                </div>
+                """, unsafe_allow_html=True)
             
     st.markdown("<br>", unsafe_allow_html=True)
     
