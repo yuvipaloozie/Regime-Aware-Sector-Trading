@@ -4,6 +4,7 @@ import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
 import os
+import requests
 from datetime import datetime
 
 # --- Page Setup ---
@@ -424,6 +425,94 @@ else:
                 marker=dict(line=dict(color='#000000', width=1.5))
             )
             st.plotly_chart(fig_pie, use_container_width=True)
+            
+            # --- AI Quant Assistant (Ollama Local Integration) ---
+            st.markdown("<hr style='border: 1px solid #111111; margin: 15px 0;'>", unsafe_allow_html=True)
+            st.markdown("<span style='font-size: 11px; font-weight: 600; text-transform: uppercase; color: #888888;'>AI Strategy Assistant</span>", unsafe_allow_html=True)
+            st.markdown("<h4 style='margin-top: 2px; margin-bottom: 10px;'>Local Quantitative Justification</h4>", unsafe_allow_html=True)
+            
+            # Check if local Ollama is active
+            ollama_online = False
+            OLLAMA_MODEL = "phi:latest"
+            try:
+                # 1.0 second timeout to avoid startup lag
+                res_tags = requests.get("http://localhost:11434/api/tags", timeout=1.0)
+                if res_tags.status_code == 200:
+                    models = [m.get("name") for m in res_tags.json().get("models", [])]
+                    if any("phi" in m for m in models):
+                        ollama_online = True
+            except Exception:
+                pass
+                
+            if ollama_online:
+                session_key = f"ai_justification_{selected_date}"
+                if session_key not in st.session_state:
+                    st.session_state[session_key] = None
+                    
+                # Setup prompt
+                holdings_list = []
+                for _, r in df_curr_alloc.iterrows():
+                    if r['Vol'] > 0:
+                        holdings_list.append(f" - {r['Asset']}: {r['Vol']*100:.1f}%")
+                if cash_weight > 0.001:
+                    holdings_list.append(f" - CASH/TLT (Risk-off Defense): {cash_weight*100:.1f}%")
+                holdings_summary = "\n".join(holdings_list)
+                
+                regime_name = REGIME_DETAILS.get(sel_regime, {}).get("name", f"State {sel_regime}")
+                regime_desc = REGIME_DETAILS.get(sel_regime, {}).get("desc", "")
+                
+                prompt = f"""
+You are an expert Quant Strategy Research Assistant.
+Analyze the following sector rotation strategy allocation decision made by our machine learning models on {selected_date}:
+
+1. Market Context:
+- Current Economic Regime: {regime_name} ({regime_desc})
+- Risk Exposure Level: {sel_risk_scalar * 100:.0f}% (Defensive cash/TLT allocation: {(1 - sel_risk_scalar) * 100:.0f}%)
+
+2. Selected Portfolio Sizing & Holdings:
+{holdings_summary}
+
+Based on the quantitative features and allocations shown above, explain semantically why these sector choices and defensive rotation decisions make logical sense. Keep your answer highly professional, concise (2-3 paragraphs), and technically grounded in financial economics (e.g. defensiveness of sectors, interest rate sensitivity, growth vs value rotation, or volatility anchoring). Do not mention that you are an AI or language model.
+"""
+                
+                # Show Generate button or cached response
+                if st.session_state[session_key] is None:
+                    if st.button("Generate AI Justification", key=f"btn_{selected_date}"):
+                        with st.spinner("phi:latest is analyzing market regime & allocations..."):
+                            payload = {
+                                "model": OLLAMA_MODEL,
+                                "prompt": prompt,
+                                "stream": False
+                            }
+                            try:
+                                res = requests.post("http://localhost:11434/api/generate", json=payload, timeout=45)
+                                if res.status_code == 200:
+                                    st.session_state[session_key] = res.json().get("response", "")
+                                    st.rerun()
+                                else:
+                                    st.error(f"Ollama returned error: {res.status_code}")
+                            except Exception as e:
+                                st.error(f"Connection error to Ollama: {e}")
+                else:
+                    st.markdown(f"""
+                    <div style='background-color: #080808; border: 1px solid #1a1a1a; padding: 15px; border-radius: 4px; margin-top: 10px;'>
+                        <div style='font-size: 10px; font-weight: 600; text-transform: uppercase; color: #10b981; margin-bottom: 8px; display: flex; justify-content: space-between;'>
+                            <span>AI Quant Explanation (phi:latest)</span>
+                            <span style='color: #888888;'>Cached</span>
+                        </div>
+                        <div style='font-size: 13px; line-height: 1.5; color: #dddddd;'>{st.session_state[session_key]}</div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    if st.button("Regenerate Justification", key=f"regen_{selected_date}"):
+                        st.session_state[session_key] = None
+                        st.rerun()
+            else:
+                st.markdown("""
+                <div style='background-color: #080808; border: 1px dashed #1a1a1a; padding: 12px; border-radius: 4px; text-align: center; color: #888888; font-size: 12px; margin-top: 10px;'>
+                    Local AI Assistant Offline <br>
+                    <span style='font-size: 10px; color: #666666;'>To enable local explanations, run Ollama locally with <code>phi:latest</code> installed.</span>
+                </div>
+                """, unsafe_allow_html=True)
         else:
             st.info("No active allocation metrics logged yet.")
 
