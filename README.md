@@ -17,7 +17,7 @@ This project challenges the standard static "buy-and-hold" portfolio baseline by
 ## Background and Motivation
 
 ### Financial Context
-Financial time-series data is inherently non-stationary. The underlying statistical properties (mean, variance, covariance) of the market shift dramatically depending on the macroeconomic environment.
+Financial time-series data is inherently non-stationary. The underlying statistical properties (mean, variance, covariance) of the market shift dramatically depending on the macroeconomic environment. This implies that a system for one "regime" may collapse in another. 
 * **The States:** The economy naturally cycles through distinct phases (e.g. boom, bust, high volatility). 
 * **The Rotation:** Different industry sectors (e.g., Technology vs. Utilities) have different sensitivities to these macro phases. 
 
