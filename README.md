@@ -44,10 +44,9 @@ This project hypothesizes that robust systems design is more critical than compl
 Conceptually, the algorithm operates in a two-stage pipeline: regime classification using a Gaussian HMM, followed by a cross-sectional investment engine using `XGBRanker`. 
 
 ### 1. Macro Regime Identification (Gaussian HMM)
-The first stage ingests stationary macroeconomic indicators into an unsupervised Hidden Markov Model. Instead of trying to predict future prices directly, this model identifies the current latent "state" of the economy based on probability distributions.
-* **The Engineering Fix:** To solve the inherent flaw of HMM label-switching across rolling windows, the `StableGaussianHMM` wrapper programmatically sorts the hidden states by volatility. This mathematically guarantees that "State 0" always maps to low-volatility expansion and "State 2" maps to high-volatility contraction, keeping downstream logic intact.
+The first stage ingests stationary macroeconomic indicators into an unsupervised Hidden Markov Model. Instead of trying to predict future prices directly, this model identifies the current latent "state" of the economy based on probability distributions. Prior to training the HMM model, input features were validated for stationarity, and the optimal choice of N states was justified using a BIC sweep to avoid overfitting. To solve the inherent flaw of HMM label-switching across rolling windows, the `StableGaussianHMM` wrapper programmatically sorts the hidden states by volatility. This mathematically guarantees that "State 0" always maps to low-volatility expansion and "State 2" maps to high-volatility contraction, keeping downstream logic intact.
 
-![HMM Architecture](INSERT_YOUR_HMM_IMAGE_LINK_HERE.png)
+![HMM Architecture](assets/regime_history.png)
 
 ### 2. Conditional Sector Allocation (XGBRanker)
 Once the current macro regime is identified, the pipeline passes the data to a state-conditional scoring engine. Predicting absolute stock returns is notoriously noisy; therefore, the engine treats sector rotation as a **Learning-to-Rank (LTR)** problem.
