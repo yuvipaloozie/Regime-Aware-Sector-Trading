@@ -32,18 +32,12 @@ This project hypothesizes that robust systems design is more critical than compl
 
 ## Data Source and Processing
 * **Source:** [FRED (Federal Reserve Economic Data)](https://fred.stlouisfed.org/) and [Yahoo Finance](https://finance.yahoo.com/).
-* **Specifications:** Weekly and Daily multi-frequency data tracking core macro proxies (VIX, Yield Curves) and Sector ETF prices (XLK, XLU, XLV, etc.).
+* **Specifications:** Weekly and Daily multi-frequency data tracking core macro proxies (VIX, Yield Curves) and 11 Sector ETF prices (XLK, XLU, XLV, etc.).
 * **Preprocessing Pipeline:**
-    * **Data Ingestion:** Concurrent API connection engine with robust rate-limit handling.
+    * **Data Ingestion:** Joined financial data on same time scales. 
     * **Stationarity Transforms:** Log-returns, structural differencing, and moving averages to stabilize raw prices.
     * **Windowing:** Progressive walk-forward expanding windows to simulate true out-of-sample prediction streams.
     * **Target Labeling:** Cross-sectional demeaning to isolate idiosyncratic sector alpha from broader market beta.
-
-## Major Libraries
-* **Data Extraction:** `yfinance`, `pandas_datareader` 
-* **Machine Learning:** `scikit-learn`, `hmmlearn`
-* **Data Manipulation:** `numpy`, `pandas`
-* **Telemetry & UI:** `streamlit`
 
 ## Code Structure
 The project has been refactored from exploratory Jupyter Notebooks (`notebooks/`) into a modular, production-grade object-oriented package.
@@ -54,7 +48,7 @@ The project has been refactored from exploratory Jupyter Notebooks (`notebooks/`
 4.  **`src.model_hmm`:** Contains the `StableGaussianHMM` custom Scikit-Learn estimator to enforce state monotonicity.
 5.  **`src.model_strategy`:** `RegimeAwareStrategy` that trains state-conditional scoring engines to compute targeted allocation weights.
 6.  **`src.backtester`:** `VectorBacktester` translating weight vectors into an append-only transaction ledger (`trade_log.csv`) and equity curves.
-7.  **`main.py` & `app.py`:** The core orchestration CLI entrypoint and the Streamlit visual telemetry dashboard.
+7.  **`main.py` & `app.py`:** The core orchestration.
 
 ## Results and Evaluations
 The comparative performance evaluates the dynamic regime-aware strategy against an equally-weighted sector baseline and the broader S&P 500 index.
@@ -63,8 +57,6 @@ The comparative performance evaluates the dynamic regime-aware strategy against 
 
 | Metric | S&P 500 (SPY) | Static Eq-Weight | Regime-Aware ML |
 | :--- | :--- | :--- | :--- |
-| **Look-Ahead Leakage** | N/A | N/A | **0.0% (Verified)** |
-| **State Stability Rate** | N/A | N/A | **100%** |
 | **Sharpe Ratio** | 0.65 | 0.61 | **0.88** |
 | **Max Drawdown** | -54.3% | -51.2% | **-32.4%** |
 | **Annualized Volatility** | 18.2% | 17.5% | **12.1%** |
