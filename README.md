@@ -49,7 +49,7 @@ Conceptually, the algorithm operates in a two-stage pipeline: regime classificat
 The first stage ingests stationary macroeconomic indicators into an unsupervised Hidden Markov Model. Instead of trying to predict future prices directly, this model identifies the current latent "state" of the economy based on probability distributions. Prior to training the HMM model, input features were validated for stationarity, and the optimal choice of N states was justified using a BIC sweep to avoid overfitting. To solve the inherent flaw of HMM label-switching across rolling windows, the `StableGaussianHMM` wrapper programmatically sorts the hidden states by volatility. This mathematically guarantees that "State 0" always maps to low-volatility expansion and "State 2" maps to high-volatility contraction, keeping downstream logic intact. Additionally, we can use the trained HMM model to produce a state transition matrix which provides the probabilities of transitioning between regimes (e.g. low chance of going from "Expansion" into "Severe Crisis").
 
 ![Regime Plot](assets/regime-history.png)
-![Regime Matrix(assets/regime-matrix.png)]
+![Regime Matrix(assets/regime_matrix.png)]
 
 ### 2. Conditional Sector Allocation (XGBRanker)
 Once the current macro regime is identified, the pipeline passes the data to a state-conditional scoring engine. Predicting absolute stock returns is notoriously noisy; therefore, the engine treats sector rotation as a **Learning-to-Rank (LTR)** problem.
