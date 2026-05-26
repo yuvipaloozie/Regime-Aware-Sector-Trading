@@ -10,16 +10,16 @@
   ![Domain](https://img.shields.io/badge/Domain-Quantitative_Finance-red?style=for-the-badge)
   
 ## Summary
-This project challenges the standard static "buy-and-hold" portfolio baseline by dynamically shifting capital based on macroeconomic conditions. It benchmarks an unsupervised Hidden Markov Model (HMM) framework against static allocations, utilizing strict data engineering pipelines to prevent the common quantitative pitfalls of look-ahead bias and model state-inversion. To visualize and interact with the algorithms performance in-market, you can explore more at https://regime-aware-sector-trading.streamlit.app/.
+This project challenges the standard static "buy-and-hold" portfolio baseline by dynamically shifting capital based on macroeconomic conditions. It benchmarks an unsupervised Hidden Markov Model (HMM) framework against static allocations while utilizing strict frameworks to avoid pitfalls of look-ahead bias and model state-inversion. To visualize and interact with the algorithm's performance in-market, you can explore more at https://regime-aware-sector-trading.streamlit.app/.
 
-**Hypothesis:** A trading strategy grounded in unsupervised macro-regime identification can conditionally allocate sector weights to improve risk-adjusted returns (Sharpe Ratio) and reduce maximum drawdowns, provided the underlying ML pipeline mathematically enforces state stability across rolling windows.
+**Hypothesis:** A trading strategy grounded in unsupervised macro-regime identification can conditionally allocate sector weights to improve risk-adjusted returns (i.e. Sharpe Ratio) and reduce maximum drawdowns, provided the underlying ML pipeline mathematically enforces state stability across rolling windows.
 
 ## Background and Motivation
 
 ### Financial Context
 Financial time-series data is inherently non-stationary. The underlying statistical properties (mean, variance, covariance) of the market shift dramatically depending on the macroeconomic environment.
-* **The States:** The economy cycles through distinct phases (e.g., expansionary low-volatility, contractive high-volatility). 
-* **The Rotation:** Different equity sectors (e.g., Technology vs. Utilities) have different sensitivities to these macro phases. 
+* **The States:** The economy naturally cycles through distinct phases (e.g. boom, bust, high volatility). 
+* **The Rotation:** Different industry sectors (e.g., Technology vs. Utilities) have different sensitivities to these macro phases. 
 
 ### The Engineering Problem: ML in Finance
 Applying machine learning to financial data usually fails in production due to two distinct engineering flaws:
