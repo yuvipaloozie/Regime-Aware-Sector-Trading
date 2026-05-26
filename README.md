@@ -71,7 +71,7 @@ The comparative performance evaluates the dynamic regime-aware strategy against 
 
 ### Model Performance (Out of Sample)
 
-| Metric | S&P 500 (SPY) | Static Eq-Weight | Regime-Aware ML |
+| Metric | S&P 500 (SPY) | Static Eq-Weight | Regime-Aware Sector Strategy |
 | :--- | :--- | :--- | :--- |
 | **Sharpe Ratio** | 0.65 | 0.61 | **0.88** |
 | **Max Drawdown** | -54.3% | -51.2% | **-32.4%** |
