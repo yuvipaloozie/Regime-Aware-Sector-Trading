@@ -88,9 +88,13 @@ A key motivation for choosing a stabilized HMM and conditional linear/tree-based
 * The conditional allocation logic allows us to extract exact feature weights per regime. 
 * We observe that Yield Curve spreads carry massive predictive weight in State 2 (Contraction) but are largely ignored by the model in State 0 (Expansion), mimicking human macroeconomic reasoning.
 
-### Key Findings
-* The implementation of the `StableGaussianHMM` custom wrapper successfully eliminated the label-switching bug, allowing the continuous pipeline to run seamlessly without manual intervention.
-* The system excels not necessarily by maximizing absolute return, but by drastically cutting portfolio drawdown during macro-contractions (State 2) via swift defensive rotation.
+## System Limitations & Constraints
+
+While the framework structurally eliminates major sources of data leakage, the strategy inherently operates under a few practical and mathematical constraints:
+
+* **Relative vs. Absolute Return:** The `XGBRanker` optimizes for relative cross-sectional performance. If the entire broader market experiences a sudden 20% crash, the ranker will successfully allocate to the "best" performing sector—but that sector may still suffer a 10% absolute loss. The model currently lacks a dynamic cash-allocation lever.
+* **Markov Property Assumption:** The Gaussian HMM mathematically assumes that the probability of transitioning to a future state depends *only* on the current state (the Markov property). In reality, macroeconomic cycles possess longer "memory" and exogenous shocks (e.g., geopolitical events) that are not fully captured by rolling historical volatility matrices.
+* **Macroeconomic Publication Lag:** While inputs like the VIX and Treasury Yields are continuous and real-time, many structural FRED economic indicators suffer from publication lags and post-facto revisions. Point in time data will be required for reliable deployment.
 
 ## Future Work
 * **Cloud Orchestration:** Containerize `main.py` and deploy via Google Cloud Run / Cloud Scheduler for automated weekly execution.
