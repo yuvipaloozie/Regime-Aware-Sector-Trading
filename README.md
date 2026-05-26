@@ -21,13 +21,8 @@ Financial time-series data is inherently non-stationary. The underlying statisti
 * **The States:** The economy naturally cycles through distinct phases (e.g. boom, bust, high volatility). 
 * **The Rotation:** Different industry sectors (e.g., Technology vs. Utilities) have different sensitivities to these macro phases. 
 
-### The Engineering Problem: ML in Finance
-Applying machine learning to financial data usually fails in production due to two distinct engineering flaws:
-1.  **Temporal Leakage:** Standard global feature scaling injects future parameters (mean/variance) into historical training arrays. 
-2.  **Label Switching (State Inversion):** Unsupervised models like HMMs classify conditions randomly per fit. Across rolling training windows, "State 0" might arbitrarily flip from representing "Low Volatility" to "High Volatility," breaking all downstream logic.
-
 ### Structural Engineering Solutions
-This project hypothesizes that robust systems design is more critical than complex deep learning. We explicitly engineer solutions to map directly to operational constraints:
+This project hypothesizes that robust systems design is more critical than complex deep learning. A well designed system is hgihly interpretable, allowing for transparency when making investment decisions. We explicitly engineer solutions to map directly to operational constraints:
 
 | Operational Risk | Domain | Pipeline Engineering |
 | :--- | :--- | :--- |
