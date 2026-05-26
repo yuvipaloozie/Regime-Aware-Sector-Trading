@@ -22,15 +22,13 @@ Financial time-series data is inherently non-stationary. The underlying statisti
 * **The Rotation:** Different industry sectors (e.g., Technology vs. Utilities) have different sensitivities to these macro phases. 
 
 ### Structural Engineering Solutions
-This project hypothesizes that robust systems design is more critical than complex deep learning. A well designed system is hgihly interpretable, allowing for transparency when making investment decisions. We explicitly engineer solutions to map directly to operational constraints:
+This project hypothesizes that robust systems design is more critical than complex deep learning. A well designed system is hgihly interpretable, allowing for transparency when making investment decisions. We explicitly engineer solutions to map directly to operational constraints such that this strategy can be safely deployed in a production environment.
 
 | Operational Risk | Pipeline Engineering |
 | :--- | :--- |
 | **Label Switching** |  **State-Order Enforced HMM:** We wrap the `GaussianHMM` engine to intercept parameters post-training. We force a monotonic rearrangement of internal tracking arrays by anchoring them to a volatility index ($\mu_{\text{State}0} < \mu_{\text{State}1}$). |
 | **Walk-Forward Leakage** | **Rolling Normalization:** Normalization parameters ($\mu$, $\sigma$) are computed strictly inside progressive walk-forward sliding training frames. The global data matrix is *never* parsed during scaling. |
 | **Cross-Sectional Leakage** | **Shift Alignment:** Ensures cross-sectional alpha targets are aligned up to the current operational index without look-forward artifacts from concurrent alternative sectors. |
-
-The utilization of these defensive programming constraints allows for an extremely interpretable, production-ready ML model that can be safely deployed to live execution. 
 
 ## Data Source and Processing
 * **Source:** [FRED (Federal Reserve Economic Data)](https://fred.stlouisfed.org/) and [Yahoo Finance](https://finance.yahoo.com/).
