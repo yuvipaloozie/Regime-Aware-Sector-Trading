@@ -14,6 +14,8 @@ This project challenges the standard static "buy-and-hold" portfolio baseline by
 
 **Hypothesis:** A trading strategy grounded in unsupervised macro-regime identification can conditionally allocate sector weights to improve risk-adjusted returns (i.e. Sharpe Ratio) and reduce maximum drawdowns, provided the underlying ML pipeline mathematically enforces state stability across rolling windows.
 
+![tradingdash](assets/trading-dash.png)
+
 ## Background and Motivation
 
 ### Financial Context
