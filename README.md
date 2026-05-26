@@ -61,17 +61,15 @@ The comparative performance evaluates the dynamic regime-aware strategy against 
 | **Max Drawdown** | -54.3% | -51.2% | **-32.4%** |
 | **Annualized Volatility** | 18.2% | 17.5% | **12.1%** |
 
-*Note: Performance metrics represent the simulated structural out-of-sample backtest after mathematically removing standard leakage artifacts.*
-
 ### Interpretability
 
 A key motivation for choosing a stabilized HMM and conditional linear/tree-based models over black-box deep learning (like LSTMs) is the necessity for portfolio interpretability. If the algorithm re-allocates millions of dollars, we must know *why*.
 
 **HMM State Clarity**
 * By forcing the `StableGaussianHMM` to anchor on volatility, the hidden states translate directly into human-readable economic conditions:
-  * **State 0:** Low Volatility / Expansion (Favors Tech, Discretionary)
+  * **State 0:** Low Volatility / Expansion 
   * **State 1:** Rising Volatility / Transition
-  * **State 2:** High Volatility / Contraction (Favors Utilities, Staples)
+  * **State 2:** High Volatility / Contraction 
 * This prevents the "black-box" issue where an algorithm sells out of a position for unknown reasons; here, allocation shifts are directly tied to an explicit transition in the underlying macro state probability matrix.
 
 **Feature Importance**
