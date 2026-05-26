@@ -44,9 +44,10 @@ This project hypothesizes that robust systems design is more critical than compl
 Conceptually, the algorithm operates in a two-stage pipeline: regime classification using a Gaussian HMM, followed by a cross-sectional investment engine using `XGBRanker`. 
 
 ### 1. Macro Regime Identification (Gaussian HMM)
-The first stage ingests stationary macroeconomic indicators into an unsupervised Hidden Markov Model. Instead of trying to predict future prices directly, this model identifies the current latent "state" of the economy based on probability distributions. Prior to training the HMM model, input features were validated for stationarity, and the optimal choice of N states was justified using a BIC sweep to avoid overfitting. To solve the inherent flaw of HMM label-switching across rolling windows, the `StableGaussianHMM` wrapper programmatically sorts the hidden states by volatility. This mathematically guarantees that "State 0" always maps to low-volatility expansion and "State 2" maps to high-volatility contraction, keeping downstream logic intact.
+The first stage ingests stationary macroeconomic indicators into an unsupervised Hidden Markov Model. Instead of trying to predict future prices directly, this model identifies the current latent "state" of the economy based on probability distributions. Prior to training the HMM model, input features were validated for stationarity, and the optimal choice of N states was justified using a BIC sweep to avoid overfitting. To solve the inherent flaw of HMM label-switching across rolling windows, the `StableGaussianHMM` wrapper programmatically sorts the hidden states by volatility. This mathematically guarantees that "State 0" always maps to low-volatility expansion and "State 2" maps to high-volatility contraction, keeping downstream logic intact. Additionally, we can use the trained HMM model to produce a state transition matrix which provides the probabilities of transitioning between regimes (e.g. low chance of going from "Expansion" into "Severe Crisis").
 
 ![Regime Plot](assets/regime-history.png)
+![Regime Matrix(assets/regime-matrix.png)]
 
 ### 2. Conditional Sector Allocation (XGBRanker)
 Once the current macro regime is identified, the pipeline passes the data to a state-conditional scoring engine. Predicting absolute stock returns is notoriously noisy; therefore, the engine treats sector rotation as a **Learning-to-Rank (LTR)** problem.
@@ -61,7 +62,7 @@ Once the current macro regime is identified, the pipeline passes the data to a s
 7.  **`main.py` & `app.py`:** The core orchestration.
 
 ## Results and Evaluations
-The comparative performance evaluates the dynamic regime-aware strategy against an equally-weighted sector baseline and the broader S&P 500 index.
+The comparative performance evaluates the dynamic regime-aware strategy against an equally-weighted sector baseline and the broader S&P 500 index. While total and annualized returns may not necessarily exceed that of the benchmarks, the strategy provides strong risk adjusted returns more appropriate for larger fund sizes. 
 
 ### Model Performance (Out of Sample)
 
@@ -79,7 +80,8 @@ A key motivation for choosing a stabilized HMM and conditional linear/tree-based
 * By forcing the `StableGaussianHMM` to anchor on volatility, the hidden states translate directly into human-readable economic conditions:
   * **State 0:** Low Volatility / Expansion 
   * **State 1:** Rising Volatility / Transition
-  * **State 2:** High Volatility / Contraction 
+  * **State 2:** High Volatility / Contraction
+  * **State 3:** Highest Volatility/ Finanical Stress /Crash
 * This prevents the "black-box" issue where an algorithm sells out of a position for unknown reasons; here, allocation shifts are directly tied to an explicit transition in the underlying macro state probability matrix.
 
 **Feature Importance**
