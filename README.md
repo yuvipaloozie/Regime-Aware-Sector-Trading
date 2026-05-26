@@ -52,9 +52,11 @@ The first stage ingests stationary macroeconomic indicators into an unsupervised
 ![Regime Matrix](assets/regime_matrix.png)
 
 ### 2. Conditional Sector Allocation (XGBRanker)
-Once the current macro regime is identified, the pipeline passes the data to a state-conditional scoring engine. Predicting absolute stock returns is notoriously noisy. Therefore, the engine treats sector rotation as a ranking problem instead. By using 'XGBRanker', the model does not care about abnsolute moves in the market - it strictly optimzies for the relative ordering of the 11 sector ETFs. The long positioning is based on the top 2 best performing sectors in conjunction with the cash allocation from the regime identification part. 
+Once the current macro regime is identified, the pipeline passes the data to a state-conditional scoring engine. Predicting absolute stock returns is notoriously noisy. Therefore, the engine treats sector rotation as a ranking problem instead. By using 'XGBRanker', the model does not care about abnsolute moves in the market - it strictly optimzies for the relative ordering of the 11 sector ETFs. The long positioning is based on the top 2 best performing sectors in conjunction with the cash allocation from the regime classifier. Using XGBoost also allows us to gather insight into which features drove decision making as shown below.
 
 ![XGBoost](assets/xgboostimp.png)
+
+The code from the original two notebooks were refactored into modular scripts for deployment with the following structure:
 
 1.  **Config Directory (`config/settings.yaml`):** Centralized configuration for asset universes, API paths, and hyperparameter bounds.
 2.  **`src.pipeline_ingest`:** Orchestrates downloads for macro features and sector tracking tickers.
@@ -95,6 +97,7 @@ A key motivation for choosing a stabilized HMM and conditional linear/tree-based
 
 While the framework structurally eliminates major sources of data leakage, the strategy inherently operates under a few practical and mathematical constraints:
 
+* **Macro-Market Divergence:** The underlying HMM relies on traditional macroeconomic proxies (e.g., yield curve spreads, interest rates) to classify the environment. Between 2023 and 2026, traditional indicators signaled a high-risk, contractionary environment (State 2) due to inverted yield curves and elevated rates, prompting the model to rotate defensively. However, the equity market decoupled from the broader economy, experiencing a historic bull run driven entirely by a secular technological paradigm shift concentrated in a few mega-cap stocks. The framework models *cyclical* economic realities, making it inherently blind to idiosyncratic, *secular* equity manias that ignore traditional macro headwinds.
 * **Relative vs. Absolute Return:** The `XGBRanker` optimizes for relative cross-sectional performance. If the entire broader market experiences a sudden 20% crash, the ranker will successfully allocate to the "best" performing sector—but that sector may still suffer a 10% absolute loss. The model currently lacks a dynamic cash-allocation lever.
 * **Markov Property Assumption:** The Gaussian HMM mathematically assumes that the probability of transitioning to a future state depends *only* on the current state (the Markov property). In reality, macroeconomic cycles possess longer "memory" and exogenous shocks (e.g., geopolitical events) that are not fully captured by rolling historical volatility matrices.
 * **Macroeconomic Publication Lag:** While inputs like the VIX and Treasury Yields are continuous and real-time, many structural FRED economic indicators suffer from publication lags and post-facto revisions. Point in time data will be required for reliable deployment.
