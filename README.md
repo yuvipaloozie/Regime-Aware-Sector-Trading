@@ -1,4 +1,4 @@
-# Regime-Aware Sector Rotation Trading Algorithm
+# Regime-Aware Sector Rotation Trading
 ### Dynamic Allocation via Unsupervised Macreconomic Regime Modelling
 
   ![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)
