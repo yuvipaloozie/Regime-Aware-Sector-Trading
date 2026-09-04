@@ -2,7 +2,7 @@
 
 Research framework for allocating across US sector ETFs using a causal macro-regime filter and a purged, walk-forward learning-to-rank model.
 
-> This repository is research software, not investment advice. Historical results are not evidence of future performance.
+> This repository is research, not investment advice. Historical results are not evidence of future performance.
 
 ![Python](https://img.shields.io/badge/Python-3.10--3.12-3776AB?style=for-the-badge&logo=python&logoColor=white)
 ![CI](https://github.com/yuvipaloozie/Regime-Aware-Sector-Trading/actions/workflows/ci.yml/badge.svg)
