@@ -1,13 +1,14 @@
-streamlit>=1.30.0
-pandas>=2.0.0
-numpy>=1.24.0
-plotly>=5.15.0
-xgboost>=1.7.0
-hmmlearn>=0.3.0
-quantstats>=0.0.59
-pyyaml>=6.0
-yfinance>=0.2.20
-scikit-learn>=1.2.0
-tqdm>=4.65.0
+streamlit==1.57.0
+pandas==2.3.3
+numpy==1.26.4
+plotly==6.6.0
+xgboost==3.2.0
+hmmlearn==0.3.3
+quantstats==0.0.81
+pyyaml==6.0.3
+yfinance==0.2.57
+scikit-learn==1.6.1
+scipy==1.13.1
+tqdm==4.67.1
 
 

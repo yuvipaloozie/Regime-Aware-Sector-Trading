@@ -1,108 +1,222 @@
-# Regime-Aware Sector Rotation Trading
-### Dynamic Allocation via Unsupervised Macreconomic Regime Modelling
+# Regime-Aware Sector Rotation
 
-  ![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)
-  ![Python](https://img.shields.io/badge/Python-3.10+-3776AB?style=for-the-badge&logo=python&logoColor=white)
-  ![Scikit-Learn](https://img.shields.io/badge/scikit--learn-F7931E?style=for-the-badge&logo=scikit-learn&logoColor=white)
-  ![NumPy](https://img.shields.io/badge/NumPy-013243?style=for-the-badge&logo=numpy&logoColor=white)
-  ![Pandas](https://img.shields.io/badge/Pandas-150458?style=for-the-badge&logo=pandas&logoColor=white)
-  ![Streamlit](https://img.shields.io/badge/Streamlit-FF4B4B?style=for-the-badge&logo=streamlit&logoColor=white)
-  ![Domain](https://img.shields.io/badge/Domain-Quantitative_Finance-red?style=for-the-badge)
-  
-## Summary
-This project challenges the standard static "buy-and-hold" portfolio baseline by dynamically shifting capital based on macroeconomic conditions. It benchmarks an unsupervised Hidden Markov Model (HMM) framework against static allocations while utilizing strict frameworks to avoid pitfalls of look-ahead bias and model state-inversion. To visualize and interact with the algorithm's performance in-market, you can explore more at https://regime-aware-sector-trading.streamlit.app/.
+Research framework for allocating across US sector ETFs using a causal macro-regime filter and a purged, walk-forward learning-to-rank model.
 
-**Hypothesis:** A trading strategy grounded in unsupervised macro-regime identification can conditionally allocate sector weights to improve risk-adjusted returns (i.e. Sharpe Ratio) and reduce maximum drawdowns, provided the underlying ML pipeline mathematically enforces state stability across rolling windows.
+> This repository is research software, not investment advice. Historical results are not evidence of future performance.
 
-![tradingdash](assets/trading-dash.png)
+![Python](https://img.shields.io/badge/Python-3.10--3.12-3776AB?style=for-the-badge&logo=python&logoColor=white)
+![CI](https://github.com/yuvipaloozie/Regime-Aware-Sector-Trading/actions/workflows/ci.yml/badge.svg)
+![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)
 
-## Background and Motivation
+Explore the deployed interface at [regime-aware-sector-trading.streamlit.app](https://regime-aware-sector-trading.streamlit.app/).
 
-### Financial Context
-Financial time-series data is inherently non-stationary. The underlying statistical properties (mean, variance, covariance) of the market shift dramatically depending on the macroeconomic environment. This implies that a system for one "regime" may collapse in another. 
-* **The States:** The economy naturally cycles through distinct phases (e.g. boom, bust, high volatility). 
-* **The Rotation:** Different industry sectors (e.g., Technology vs. Utilities) have different sensitivities to these macro phases. 
+![Regime-aware sector rotation dashboard](assets/trading-dash.png)
 
-### Structural Engineering Solutions
-This project hypothesizes that robust systems design is more critical than complex deep learning. A well designed system is hgihly interpretable, allowing for transparency when making investment decisions. We explicitly engineer solutions to map directly to operational constraints such that this strategy can be safely deployed in a production environment.
+## Background and motivation
 
-| Operational Risk | Pipeline Engineering |
-| :--- | :--- |
-| **Label Switching** |  **State-Order Enforced HMM:** We wrap the `GaussianHMM` engine to intercept parameters post-training. We force a monotonic rearrangement of internal tracking arrays by anchoring them to a volatility index ($\mu_{\text{State}0} < \mu_{\text{State}1}$). |
-| **Walk-Forward Leakage** | **Rolling Normalization:** Normalization parameters ($\mu$, $\sigma$) are computed strictly inside progressive walk-forward sliding training frames. The global data matrix is *never* parsed during scaling. |
-| **Cross-Sectional Leakage** | **Shift Alignment:** Ensures cross-sectional alpha targets are aligned up to the current operational index without look-forward artifacts from concurrent alternative sectors. |
+Financial time series are non-stationary: their means, variances, and correlations change across expansion, transition, contraction, and crisis periods. This project tests whether identifying those environments can improve sector allocation while controlling downside risk.
 
-## Data Source and Processing
-* **Source:** [FRED (Federal Reserve Economic Data)](https://fred.stlouisfed.org/) and [Yahoo Finance](https://finance.yahoo.com/).
-* **Specifications:** Weekly and Daily multi-frequency data tracking core macro proxies (VIX, Yield Curves) and 11 Sector ETF prices (XLK, XLU, XLV, etc.).
-* **Preprocessing Pipeline:**
-    * **Data Ingestion:** Joined financial data on same time scales. 
-    * **Stationarity Transforms:** Log-returns, structural differencing, and moving averages to stabilize raw prices.
-    * **Windowing:** Progressive walk-forward expanding windows to simulate true out-of-sample prediction streams.
-    * **Target Labeling:** Cross-sectional demeaning to isolate idiosyncratic sector alpha from broader market beta.
+- **The states:** latent macro and market conditions are inferred from returns, volatility, the yield curve, financial stress, and inflation.
+- **The rotation:** sectors have different sensitivities to those conditions, so the strategy ranks them cross-sectionally rather than forecasting absolute market direction.
+- **The engineering premise:** causal data handling and reproducible execution matter more than adding model complexity.
 
-## System Architecture and Code Structure
+## What the system does
 
-Conceptually, the algorithm operates in a two-stage pipeline: regime classification using a Gaussian HMM, followed by a cross-sectional investment engine using `XGBRanker`. 
+1. Downloads adjusted daily ETF prices and point-in-time initial-release macro observations.
+2. Builds stationary weekly market, volatility, yield-curve, stress, and inflation features.
+3. Refits a Gaussian HMM in rolling windows and applies a forward-only state filter.
+4. Trains an expanding-window `XGBRanker` with a four-week purge/embargo.
+5. Selects the top-ranked sectors with a turnover buffer.
+6. Allocates unused risk budget to the strongest positive-trend defensive asset among SHY, IEF, and TLT, otherwise cash.
+7. Executes signals on a later trading date and marks the portfolio to market daily.
 
-### 1. Macro Regime Identification (Gaussian HMM)
-The first stage ingests stationary macroeconomic indicators into an unsupervised Hidden Markov Model. Instead of trying to predict future prices directly, this model identifies the current latent "state" of the economy based on probability distributions. Prior to training the HMM model, input features were validated for stationarity, and the optimal choice of N states was justified using a BIC sweep to avoid overfitting. To solve the inherent flaw of HMM label-switching across rolling windows, the `StableGaussianHMM` wrapper programmatically sorts the hidden states by volatility. This mathematically guarantees that "State 0" always maps to low-volatility expansion and "State 2" maps to high-volatility contraction, keeping downstream logic intact. Additionally, we can use the trained HMM model to produce a state transition matrix which provides the probabilities of transitioning between regimes (e.g. low chance of going from "Expansion" into "Severe Crisis"). Finally, for these states, a 'Risk_Scalar' value is attached, representing what percentage of the portfolio should be in-market versus a "safe haven" (e.g. cash, treasury bonds, etc). 
+## Backtest-integrity guarantees
 
-![Regime Plot](assets/regime-history.png)
-![Regime Matrix](assets/regime_matrix.png)
+- **Causal HMM inference:** later observations in a prediction block cannot change an earlier state.
+- **Purged labels:** a training label is excluded unless its full forward-return horizon is known before the test signal.
+- **Live inference rows:** the latest rows can be scored even though their future-return labels do not yet exist.
+- **Point-in-time macro data:** FRED initial releases are indexed by first-availability date rather than revised observation history.
+- **Explicit demo isolation:** synthetic data is available only through `--demo`; a network failure never silently changes a real run into a synthetic one.
+- **Adjusted and return-spliced prices:** pre-inception proxies are normalized at the ETF switch date instead of filling incompatible price levels.
+- **Delayed execution:** signal dates and execution dates are stored separately.
+- **Daily valuation:** drawdown and risk statistics include intra-rebalance-period moves.
+- **Artifact provenance:** each run writes `data/run_manifest.json` with sources, model diagnostics, costs, and date ranges.
 
-### 2. Conditional Sector Allocation (XGBRanker)
-Once the current macro regime is identified, the pipeline passes the data to a state-conditional scoring engine. Predicting absolute stock returns is notoriously noisy. Therefore, the engine treats sector rotation as a ranking problem instead. By using 'XGBRanker', the model does not care about abnsolute moves in the market - it strictly optimzies for the relative ordering of the 11 sector ETFs. The long positioning is based on the top 2 best performing sectors in conjunction with the cash allocation from the regime classifier. Using XGBoost also allows us to gather insight into which features drove decision making as shown below.
+## Model architecture and visual evidence
 
-![XGBoost](assets/xgboostimp.png)
+### 1. Macro regime identification
 
-The code from the original two notebooks were refactored into modular scripts for deployment with the following structure:
+An anchored Gaussian HMM sorts fitted states by volatility so state numbering remains interpretable. The updated implementation uses causal forward probabilities: a later observation cannot revise an earlier out-of-sample state. Exposure is probability-weighted rather than driven by a single brittle hard label.
 
-1.  **Config Directory (`config/settings.yaml`):** Centralized configuration for asset universes, API paths, and hyperparameter bounds.
-2.  **`src.pipeline_ingest`:** Orchestrates downloads for macro features and sector tracking tickers.
-3.  **`src.features`:** Handles differencing and strict out-of-sample feature scaling (`FeaturePipeline`).
-4.  **`src.model_hmm`:** Contains the `StableGaussianHMM` custom Scikit-Learn estimator to enforce state monotonicity.
-5.  **`src.model_strategy`:** `RegimeAwareStrategy` that trains state-conditional scoring engines to compute targeted allocation weights.
-6.  **`src.backtester`:** `VectorBacktester` translating weight vectors into an append-only transaction ledger (`trade_log.csv`) and equity curves.
-7.  **`main.py` & `app.py`:** The core orchestration.
+The following figures are the original project artifacts and remain useful illustrations of the model. They are historical snapshots, not regenerated proof of the revised pipeline.
 
-## Results and Evaluations
-The comparative performance evaluates the dynamic regime-aware strategy against an equally-weighted sector baseline and the broader S&P 500 index. While total and annualized returns may not necessarily exceed that of the benchmarks, the strategy provides strong risk adjusted returns more appropriate for larger fund sizes. 
+![Historical inferred regime timeline](assets/regime-history.png)
 
-### Model Performance (Out of Sample)
+![Historical HMM state-transition matrix](assets/regime_matrix.png)
 
-| Metric | S&P 500 (SPY) | Static Eq-Weight | Regime-Aware Sector Strategy |
-| :--- | :--- | :--- | :--- |
-| **Sharpe Ratio** | 0.65 | 0.61 | **0.88** |
-| **Max Drawdown** | -54.3% | -51.2% | **-32.4%** |
-| **Annualized Volatility** | 18.2% | 17.5% | **12.1%** |
+### 2. Cross-sectional sector ranking
 
-### Interpretability
+The second stage uses `XGBRanker` to order the eleven sector ETFs by expected four-week relative alpha. Training observations are grouped by date and subjected to a strict purge/embargo. The newest unlabeled rows can still be scored for live inference.
 
-A key motivation for choosing a stabilized HMM and conditional linear/tree-based models over black-box deep learning (like LSTMs) is the necessity for portfolio interpretability. If the algorithm re-allocates millions of dollars, we must know *why*.
+![Historical XGBoost feature importance](assets/xgboostimp.png)
 
-**HMM State Clarity**
-* By forcing the `StableGaussianHMM` to anchor on volatility, the hidden states translate directly into human-readable economic conditions:
-  * **State 0:** Low Volatility / Expansion 
-  * **State 1:** Rising Volatility / Transition
-  * **State 2:** High Volatility / Contraction
-  * **State 3:** Highest Volatility/ Finanical Stress /Crash
-* This prevents the "black-box" issue where an algorithm sells out of a position for unknown reasons; here, allocation shifts are directly tied to an explicit transition in the underlying macro state probability matrix.
+### 3. Portfolio construction and execution
 
-**Feature Importance**
-* The conditional allocation logic allows us to extract exact feature weights per regime. 
-* We observe that Yield Curve spreads carry massive predictive weight in State 2 (Contraction) but are largely ignored by the model in State 0 (Expansion), mimicking human macroeconomic reasoning.
+The top-ranked sectors are selected with a turnover buffer. Regime probabilities scale equity exposure, while the remaining budget is allocated to the strongest positive-trend defensive asset among SHY, IEF, and TLT—or to cash when none qualifies. Signals execute on a later market date and are valued daily.
 
-## System Limitations & Constraints
+## Installation
 
-While the framework structurally eliminates major sources of data leakage, the strategy inherently operates under a few practical and mathematical constraints:
+```bash
+python -m venv .venv
+source .venv/bin/activate  # Windows: .venv\Scripts\activate
+pip install -r requirements.txt
+```
 
-* **Macro-Market Divergence:** The underlying HMM relies on traditional macroeconomic proxies (e.g., yield curve spreads, interest rates) to classify the environment. Between 2023 and 2026, traditional indicators signaled a high-risk, contractionary environment (State 2) due to inverted yield curves and elevated rates, prompting the model to rotate defensively. However, the equity market decoupled from the broader economy, experiencing a historic bull run driven entirely by a secular technological paradigm shift concentrated in a few mega-cap stocks. The framework models *cyclical* economic realities, making it inherently blind to idiosyncratic, *secular* equity manias that ignore traditional macro headwinds.
-* **Relative vs. Absolute Return:** The `XGBRanker` optimizes for relative cross-sectional performance. If the entire broader market experiences a sudden 20% crash, the ranker will successfully allocate to the "best" performing sector—but that sector may still suffer a 10% absolute loss. The model currently lacks a dynamic cash-allocation lever.
-* **Markov Property Assumption:** The Gaussian HMM mathematically assumes that the probability of transitioning to a future state depends *only* on the current state (the Markov property). In reality, macroeconomic cycles possess longer "memory" and exogenous shocks (e.g., geopolitical events) that are not fully captured by rolling historical volatility matrices.
-* **Macroeconomic Publication Lag:** While inputs like the VIX and Treasury Yields are continuous and real-time, many structural FRED economic indicators suffer from publication lags and post-facto revisions. Point in time data will be required for reliable deployment.
+Python dependencies are pinned to the versions exercised by CI.
 
-## Future Work
-* **Cloud Orchestration:** Containerize `main.py` and deploy via Google Cloud Run / Cloud Scheduler for automated weekly execution.
-* **Live Execution Integration:** Connect the `backtester` ledger logic to the Alpaca Brokerage API for paper/live trade execution routing.
-* **Asset Universe Expansion:** Introduce fixed income (Treasuries) and commodities (Gold, Oil) to the sector rotation matrix for enhanced State-2 defense.
+## Running with real data
+
+Create a FRED API key, then expose it to the process:
+
+```bash
+export FRED_API_KEY="your-key"
+python regime_sector_rotation/main.py --force-refresh
+```
+
+PowerShell:
+
+```powershell
+$env:FRED_API_KEY = "your-key"
+python regime_sector_rotation/main.py --force-refresh
+```
+
+The real-data pipeline fails closed if Yahoo Finance or point-in-time FRED ingestion is unavailable.
+
+## Explicit demo mode
+
+```bash
+python regime_sector_rotation/main.py --demo --force-refresh
+```
+
+Demo artifacts are marked as synthetic in their cache metadata and run manifest. Do not compare demo performance with real benchmarks.
+
+## What is backtest, recent signal, and live testing?
+
+| Mode | What it does | Current status |
+| :--- | :--- | :--- |
+| Historical backtest | Walk-forward model fitting, delayed execution, costs, and daily mark-to-market evaluation over past data | Implemented |
+| Recent research signal | Refreshes data through the configured end date (`today` by default) and scores the latest rows even though future labels do not exist | Implemented; requires `FRED_API_KEY` for a real-data refresh |
+| Simulated execution replay | Replays the final allocation changes through `SimulatedTradeManager` and writes `trade_log.csv` | Implemented; this is not a broker-connected paper account |
+| Scheduled paper trading | Runs automatically on a schedule, submits orders to a broker sandbox, reconciles fills, and monitors failures | Not yet implemented |
+| Live trading | Places real-money orders | Not implemented |
+
+The Streamlit app reads the generated artifacts; it does not run continuously and does not prove that an order was submitted or filled. Its status banner identifies legacy, demo, or real-data artifacts and explicitly labels executions as simulated.
+
+## Outputs
+
+- `data/backtest_equity.csv`: daily strategy, equal-weight, SPY, and momentum wealth paths.
+- `data/backtest_weights.csv`: signal-date target weights.
+- `data/trade_log.csv`: delayed simulated executions and allocation records.
+- `data/run_manifest.json`: data provenance, ranking diagnostics, cost sensitivity, and performance metrics.
+- `ML_Sector_Rotation_Tearsheet.html`: QuantStats report based on daily returns.
+
+## Evaluation
+
+Each run reports:
+
+- CAGR, annualized Sharpe, daily maximum drawdown, and annualized turnover;
+- mean out-of-sample Spearman rank information coefficient;
+- top-N realized-sector hit rate;
+- performance at 0, 5, 10, and 20 basis points per unit of turnover;
+- comparisons with SPY, equal-weight sectors, and a simple momentum baseline.
+
+Previously committed headline statistics were produced by an earlier pipeline and are not treated as current evidence. Regenerate artifacts after configuring point-in-time data, then assess the new manifest and tearsheet.
+
+### Original project results — legacy snapshot
+
+These are the figures originally presented with the project. They preserve the original research narrative and screenshots, but they came from the pre-integrity-refactor pipeline and have **not** been reproduced by the revised causal pipeline. They must not be presented as current validated performance.
+
+| Metric | S&P 500 (SPY) | Static equal weight | Original regime-aware run |
+| :--- | ---: | ---: | ---: |
+| Sharpe ratio | 0.65 | 0.61 | **0.88** |
+| Maximum drawdown | -54.3% | -51.2% | **-32.4%** |
+| Annualized volatility | 18.2% | 17.5% | **12.1%** |
+
+The revised run manifest is now the canonical source for performance claims because it records data provenance, evaluation dates, cost assumptions, ranking diagnostics, and sensitivity results.
+
+## Interpretability
+
+- **State clarity:** state 0 represents the lowest-volatility fitted state and state 3 the highest-volatility fitted state, with posterior probabilities retained for every observation.
+- **Feature attribution:** walk-forward feature importances show how momentum, volatility, beta, rate sensitivity, and regime probabilities influence sector rankings.
+- **Decision traceability:** signal weights, delayed execution weights, transactions, regime probabilities, costs, and equity paths are exported separately.
+
+## Repository layout
+
+```text
+regime_sector_rotation/
+├── config/settings.yaml
+├── src/
+│   ├── pipeline_ingest.py
+│   ├── features.py
+│   ├── model_hmm.py
+│   ├── model_strategy.py
+│   └── backtester.py
+├── tests/test_components.py
+├── main.py
+└── app.py
+```
+
+## Remaining research limitations
+
+- Yahoo Finance is convenient research data, not an institutional market-data feed.
+- Initial-release FRED data reduces revision leakage but release-time granularity may still require a vendor-grade economic calendar.
+- HMM state meaning can drift even when states are ordered by volatility; monitor emission centers and transition stability.
+- Model and portfolio hyperparameters still require nested walk-forward selection before any claim of optimality.
+- Capacity, taxes, borrow constraints, opening-auction fills, and market impact are not modeled.
+- T-bills and Treasury ETFs can behave differently from cash during stress; the defensive sleeve must be monitored rather than assumed safe.
+
+## Production and portfolio roadmap
+
+### Recruiter-ready engineering
+
+- Package the engine behind typed interfaces and a CLI, with Ruff, mypy, pytest coverage thresholds, pre-commit hooks, and generated API documentation.
+- Add deterministic unit fixtures, golden backtest tests, property tests for weight/risk invariants, and integration tests for provider schema changes.
+- Containerize the app and pipeline, add environment-specific configuration, and publish reproducible build artifacts from CI.
+- Track experiments, parameters, datasets, and model versions with an experiment registry rather than relying on notebooks or overwritten CSV files.
+- Add an architecture diagram, model card, data dictionary, decision log, and a concise case study explaining what changed after leakage was removed.
+
+### Production trading controls
+
+- Replace research feeds with licensed point-in-time market and macro data carrying release and correction timestamps.
+- Persist signals, orders, fills, positions, cash, and model versions in a transactional database with idempotency keys and an immutable audit trail.
+- Add a scheduler, broker paper-account adapter, order reconciliation, retry policy, alerts, health checks, and a manual kill switch.
+- Monitor missing/stale data, feature drift, regime drift, prediction dispersion, turnover, exposure, slippage, drawdown, and divergence between expected and actual fills.
+- Separate research, paper, and production credentials and require an approval gate before promoting a model version.
+
+### Leverage policy
+
+The current portfolio is long-only and fully funded: target weights sum to 100%, so user-controlled leverage is **not currently enabled**. That is the appropriate default.
+
+If leverage is added, it should be volatility-targeted rather than a free-form multiplier. A robust implementation would:
+
+1. estimate ex-ante portfolio volatility using only trailing information;
+2. scale toward a configurable volatility target;
+3. cap gross exposure conservatively (for example, 1.0× by default and no more than 1.25–1.50× in research/paper mode);
+4. reduce exposure during stressed regimes, high correlation, stale data, or drawdown breaches;
+5. model financing rates, margin requirements, borrow availability, gap risk, and leveraged transaction costs;
+6. prohibit leverage in live mode until a minimum paper-trading period and risk review have passed.
+
+A Streamlit leverage control should therefore be labeled **research scenario**, bounded, and excluded from broker execution unless server-side risk checks independently approve it.
+
+## Tests
+
+```bash
+python -m compileall regime_sector_rotation
+python -m unittest discover -s regime_sector_rotation/tests -v
+```
+
+CI runs these checks on Python 3.10 and 3.12.
+
+## License
+
+MIT

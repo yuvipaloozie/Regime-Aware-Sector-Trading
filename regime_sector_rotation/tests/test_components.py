@@ -1,15 +1,22 @@
 import os
 import sys
 import unittest
+import tempfile
 import numpy as np
 import pandas as pd
 
 # Add project root to python path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from src.pipeline_ingest import load_config
+from src.pipeline_ingest import DataPipeline, load_config, splice_proxy_returns
 from src.features import engineer_hmm_features
-from src.model_hmm import AnchoredGaussianHMM
+from src.model_hmm import AnchoredGaussianHMM, causal_filter_probabilities
+from src.model_strategy import (
+    build_execution_schedule,
+    backtest_strategy,
+    iter_purged_walk_forward_splits,
+    run_walk_forward_xgboost,
+)
 from main import SimulatedTradeManager
 
 class TestRegimeSectorRotation(unittest.TestCase):
@@ -61,6 +68,81 @@ class TestRegimeSectorRotation(unittest.TestCase):
         # Verify the fitted model means are sorted ascending by VIX level
         fitted_means = model.model_.means_[:, 1]
         self.assertTrue(np.all(np.diff(fitted_means) >= 0.0), f"Fitted VIX means are not sorted: {fitted_means}")
+
+    def test_hmm_filter_is_causal(self):
+        """Changing a later test observation must not change an earlier state posterior."""
+        rng = np.random.default_rng(7)
+        history = np.vstack([rng.normal([0, 12], [0.5, 1], (100, 2)),
+                             rng.normal([0, 30], [0.5, 2], (100, 2))])
+        model = AnchoredGaussianHMM(n_components=2, vix_idx=1, random_state=4).fit(history)
+        first = np.array([[0.0, 18.0]])
+        ordinary_future = np.array([[0.0, 19.0]])
+        extreme_future = np.array([[5.0, 100.0]])
+        ordinary = causal_filter_probabilities(model, history, np.vstack([first, ordinary_future]))
+        extreme = causal_filter_probabilities(model, history, np.vstack([first, extreme_future]))
+        np.testing.assert_allclose(ordinary[0], extreme[0], atol=1e-12)
+
+    def test_purged_split_excludes_label_boundary(self):
+        dates = pd.date_range("2020-01-03", periods=12, freq="W-FRI")
+        train, test = next(iter(iter_purged_walk_forward_splits(dates, min_train=5, purge=2, step=2)))
+        self.assertEqual(list(train), list(dates[:5]))
+        self.assertEqual(list(test), list(dates[7:9]))
+        self.assertLess(train[-1], dates[5])
+
+    def test_proxy_splice_preserves_switch_continuity(self):
+        idx = pd.date_range("2020-01-01", periods=6)
+        target = pd.Series([np.nan, np.nan, np.nan, 100.0, 102.0, 101.0], index=idx)
+        proxy = pd.Series([40.0, 42.0, 44.0, 46.0, 47.0, 48.0], index=idx)
+        result = splice_proxy_returns(target, proxy)
+        self.assertEqual(result.loc[idx[3]], 100.0)
+        self.assertAlmostEqual(result.loc[idx[2]], 100.0 * 44.0 / 46.0)
+
+    def test_synthetic_generation_requires_explicit_demo_mode(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            pipeline = DataPipeline(raw_dir=temp_dir, data_mode="real")
+            with self.assertRaises(RuntimeError):
+                pipeline.generate_synthetic_equity_data(["SPY"], "2020-01-01", "2020-02-01")
+
+    def test_execution_schedule_is_after_signal(self):
+        signals = pd.DatetimeIndex(["2024-01-05", "2024-01-12"])
+        weights = pd.DataFrame({"XLK": [1.0, 0.0], "CASH": [0.0, 1.0]}, index=signals)
+        market_days = pd.bdate_range("2024-01-01", "2024-01-19")
+        schedule, signal_map = build_execution_schedule(weights, market_days, lag_trading_days=1)
+        self.assertTrue((schedule.index > signal_map.values).all())
+        self.assertEqual(schedule.index[0], pd.Timestamp("2024-01-08"))
+
+    def test_ranker_scores_latest_unlabeled_rows(self):
+        dates = pd.date_range("2022-01-07", periods=14, freq="W-FRI")
+        index = pd.MultiIndex.from_product([dates, ["A", "B", "C"]], names=["Date", "Ticker"])
+        rng = np.random.default_rng(12)
+        frame = pd.DataFrame(index=index)
+        for feature in ["Mom_1W", "Mom_13W", "Vol_13W", "Beta_SPY_26W", "Corr_TNX_26W"]:
+            frame[f"{feature}_Z"] = rng.normal(size=len(frame))
+        frame["Regime_Prob_0"] = 0.6
+        frame["Regime_Prob_1"] = 0.4
+        frame["Smoothed_Regime"] = 0
+        frame["Risk_Scalar"] = 0.9
+        frame["Raw_Fwd_4W"] = rng.normal(size=len(frame))
+        frame["Target_Alpha_4W"] = frame.groupby(level="Date")["Raw_Fwd_4W"].transform(lambda values: values - values.mean())
+        frame.loc[(dates[-2:], slice(None)), ["Raw_Fwd_4W", "Target_Alpha_4W"]] = np.nan
+        frame["Is_Training_Row"] = frame["Target_Alpha_4W"].notna()
+        config = {"xgboost": {"learning_rate": 0.1, "max_depth": 2, "n_estimators": 5,
+                               "subsample": 1.0, "colsample_bytree": 1.0, "random_state": 1,
+                               "purge_weeks": 2, "step_weeks": 2, "min_train_weeks": 5}}
+        results, _ = run_walk_forward_xgboost(frame, config)
+        self.assertIn(dates[-1], results.index.get_level_values("Date"))
+        self.assertTrue(results.xs(dates[-1], level="Date")["Target_Alpha_4W"].isna().all())
+
+    def test_backtest_uses_common_post_execution_window(self):
+        market_days = pd.bdate_range("2024-01-01", periods=12)
+        prices = pd.DataFrame({"A": np.linspace(100, 111, 12), "SPY": np.linspace(200, 211, 12)}, index=market_days)
+        signals = pd.DataFrame({"A": [1.0], "CASH": [0.0]}, index=[pd.Timestamp("2024-01-05")])
+        config = {"sectors": ["A"], "benchmarks": {"equity": "SPY"},
+                  "portfolio": {"cash_symbol": "CASH", "annual_risk_free_rate": 0.0,
+                                "execution_lag_trading_days": 1, "transaction_cost_bps": 0.0}}
+        result = backtest_strategy(signals, pd.DataFrame(), prices, config, df_prices_daily=prices)
+        self.assertEqual(result["net_returns"].index[0], pd.Timestamp("2024-01-08"))
+        self.assertEqual(result["benchmark_returns"].index[0], result["net_returns"].index[0])
 
     def test_hmm_feature_engineering(self):
         """Verify HMM stress factor calculations on mock daily/weekly series."""

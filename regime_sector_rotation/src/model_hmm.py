@@ -1,3 +1,7 @@
+import os
+
+os.environ.setdefault("OMP_NUM_THREADS", "2")
+
 import numpy as np
 import pandas as pd
 from sklearn.base import BaseEstimator, ClassifierMixin
@@ -67,6 +71,39 @@ class AnchoredGaussianHMM(BaseEstimator, ClassifierMixin):
         return self.model_.score(X)
 
 
+def _normalize_probability(values):
+    total = values.sum()
+    if not np.isfinite(total) or total <= 0:
+        return np.full_like(values, 1.0 / len(values), dtype=float)
+    return values / total
+
+
+def causal_filter_probabilities(fitted_model, X_history, X_new):
+    """Filter states sequentially so no future observation changes an earlier state.
+
+    ``hmmlearn.predict`` performs sequence decoding. Calling it on a multi-row test
+    block lets later rows affect earlier decoded states. This function applies the
+    forward filter and carries the posterior from history into each new row.
+    """
+    model = fitted_model.model_ if isinstance(fitted_model, AnchoredGaussianHMM) else fitted_model
+    if model is None:
+        raise ValueError("Model is not fitted yet.")
+
+    history_ll = model._compute_log_likelihood(np.asarray(X_history))
+    alpha = _normalize_probability(model.startprob_ * np.exp(history_ll[0] - history_ll[0].max()))
+    for log_likelihood in history_ll[1:]:
+        emission = np.exp(log_likelihood - log_likelihood.max())
+        alpha = _normalize_probability((alpha @ model.transmat_) * emission)
+
+    probabilities = []
+    for row in np.asarray(X_new):
+        log_likelihood = model._compute_log_likelihood(row.reshape(1, -1))[0]
+        emission = np.exp(log_likelihood - log_likelihood.max())
+        alpha = _normalize_probability((alpha @ model.transmat_) * emission)
+        probabilities.append(alpha.copy())
+    return np.asarray(probabilities)
+
+
 def run_walk_forward_hmm(df_features, config):
     """
     Executes a walk-forward out-of-sample HMM classification.
@@ -87,6 +124,7 @@ def run_walk_forward_hmm(df_features, config):
     dates_array = df_features.index
     
     out_of_sample_predictions = []
+    out_of_sample_probabilities = []
     prediction_dates = []
     
     print(f"Running rolling walk-forward HMM on {len(df_features)} weeks...")
@@ -115,19 +153,25 @@ def run_walk_forward_hmm(df_features, config):
         
         try:
             hmm_model.fit(X_train_scaled)
-            test_preds = hmm_model.predict(X_test_scaled)
+            test_probabilities = causal_filter_probabilities(hmm_model, X_train_scaled, X_test_scaled)
+            test_preds = test_probabilities.argmax(axis=1)
         except Exception as e:
             # Fallback to simple state assignments if convergence fails
             print(f"HMM fit failure at {dates_test[0].date()}: {e}. Carrying forward state 1.")
             test_preds = np.ones(len(X_test_raw), dtype=int)
+            test_probabilities = np.zeros((len(X_test_raw), n_states), dtype=float)
+            test_probabilities[:, min(1, n_states - 1)] = 1.0
             
         out_of_sample_predictions.extend(test_preds)
+        out_of_sample_probabilities.extend(test_probabilities)
         prediction_dates.extend(dates_test)
         
     # Build results DataFrame
     df_export = pd.DataFrame(index=prediction_dates)
     df_export.index.name = 'Date'
     df_export['Raw_OOS_Regime'] = out_of_sample_predictions
+    for state in range(n_states):
+        df_export[f'Regime_Prob_{state}'] = np.asarray(out_of_sample_probabilities)[:, state]
     
     # 4. SIGNAL SMOOTHING (Hysteresis Filter)
     # Mode over a 3-week rolling window prevents rapid whiplash rebalancing
@@ -144,13 +188,8 @@ def run_walk_forward_hmm(df_features, config):
     # State 1 (warning):    0.8 risk exposure
     # State 2 (crisis):     0.5 risk exposure
     # State 3 (severe):     0.0 risk exposure (complete cash/TLT defense)
-    conditions = [
-        df_export['Smoothed_Regime'] == 0,
-        df_export['Smoothed_Regime'] == 1,
-        df_export['Smoothed_Regime'] == 2,
-        df_export['Smoothed_Regime'] == 3
-    ]
-    choices = [1.0, 0.8, 0.5, 0.0]
-    df_export['Risk_Scalar'] = np.select(conditions, choices, default=1.0)
+    choices = np.asarray([1.0, 0.8, 0.5, 0.0][:n_states], dtype=float)
+    probability_columns = [f'Regime_Prob_{state}' for state in range(n_states)]
+    df_export['Risk_Scalar'] = df_export[probability_columns].to_numpy() @ choices
     
     return df_export

@@ -1,0 +1,14 @@
+[build-system]
+requires = ["setuptools>=70"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "regime-aware-sector-rotation"
+version = "0.2.0"
+requires-python = ">=3.10,<3.13"
+description = "Causal, point-in-time regime-aware sector rotation research pipeline"
+
+[tool.pytest.ini_options]
+testpaths = ["regime_sector_rotation/tests"]
+addopts = "-ra"
+

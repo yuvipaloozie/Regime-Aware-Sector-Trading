@@ -4,6 +4,7 @@ import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
 import os
+import json
 import requests
 from datetime import datetime
 
@@ -118,6 +119,30 @@ st.title("Regime-Aware Sector Rotation Terminal")
 current_dir = os.path.dirname(os.path.abspath(__file__))
 LOG_PATH = os.path.join(current_dir, "data", "trade_log.csv")
 BACKTEST_EQ_PATH = os.path.join(current_dir, "data", "backtest_equity.csv")
+MANIFEST_PATH = os.path.join(current_dir, "data", "run_manifest.json")
+
+run_manifest = None
+if os.path.exists(MANIFEST_PATH):
+    try:
+        with open(MANIFEST_PATH, "r", encoding="utf-8") as manifest_file:
+            run_manifest = json.load(manifest_file)
+    except (OSError, ValueError):
+        run_manifest = None
+
+if run_manifest:
+    mode = str(run_manifest.get("data_mode", "unknown")).upper()
+    generated = run_manifest.get("generated_at", "unknown time")
+    execution_end = run_manifest.get("execution_end", "unknown")
+    st.info(
+        f"RESEARCH ARTIFACTS · {mode} DATA · generated {generated} · "
+        f"last simulated execution {execution_end}. This is not live brokerage execution."
+    )
+else:
+    st.warning(
+        "LEGACY ARTIFACTS · These committed charts predate the integrity refactor. "
+        "They are historical backtest/simulation outputs, not a live or paper-trading record. "
+        "Run the real-data pipeline to generate a provenance manifest."
+    )
 
 # Dict mapping HMM states to structured, technical visual styles & details
 REGIME_DETAILS = {
@@ -165,7 +190,7 @@ else:
         
         if not df_be.empty:
             strat_ret_be = df_be['Strategy'].pct_change().dropna()
-            ann_factor = 52 # Weekly returns
+            ann_factor = 252  # Backtest artifacts are daily mark-to-market returns.
             
             strat_vol = strat_ret_be.std() * np.sqrt(ann_factor)
             strat_ann_ret = strat_ret_be.mean() * ann_factor
@@ -424,7 +449,7 @@ else:
                 textinfo='percent+label',
                 marker=dict(line=dict(color='#000000', width=1.5))
             )
-            st.plotly_chart(fig_pie, use_container_width=True)
+            st.plotly_chart(fig_pie, width="stretch")
         else:
             st.info("No active allocation metrics logged yet.")
 
@@ -440,6 +465,8 @@ else:
             # Scale both paths to start at exactly $100,000.00 to represent capital growth paths
             df_be['Strategy_Scaled'] = (df_be['Strategy'] / df_be['Strategy'].iloc[0]) * 100000.0
             df_be['Benchmark_Scaled'] = (df_be['Benchmark'] / df_be['Benchmark'].iloc[0]) * 100000.0
+            comparison_column = 'SPY' if 'SPY' in df_be.columns else 'Benchmark'
+            df_be['SPY_Scaled'] = (df_be[comparison_column] / df_be[comparison_column].iloc[0]) * 100000.0
             
             # Render Line Chart
             fig_line = go.Figure()
@@ -456,14 +483,14 @@ else:
             # SPY Benchmark Path (Full History)
             fig_line.add_trace(go.Scatter(
                 x=df_be['Date'],
-                y=df_be['Benchmark_Scaled'],
+                y=df_be['SPY_Scaled'],
                 mode='lines',
                 name='SPY Benchmark',
                 line=dict(color='#ffffff', width=1.5, dash='dot') # Clean minimalist white dotted
             ))
             
             fig_line.update_layout(
-                title="Strategy vs. Benchmark (Full Historical Backtest: 2014-Present)",
+                title="Daily Mark-to-Market Strategy vs. SPY",
                 xaxis_title="Date",
                 yaxis_title="Equity Value ($)",
                 paper_bgcolor='#000000',
@@ -482,7 +509,7 @@ else:
                 height=355
             )
             
-            st.plotly_chart(fig_line, use_container_width=True)
+            st.plotly_chart(fig_line, width="stretch")
         else:
             st.info("No historical backtest equity log found.")
             
@@ -545,7 +572,7 @@ else:
                 margin=dict(t=50, b=20, l=10, r=10),
                 height=300
             )
-            st.plotly_chart(fig_weights, use_container_width=True)
+            st.plotly_chart(fig_weights, width="stretch")
         else:
             st.info("Select one or more sectors from the multiselect dropdown above to view weight history.")
     else:
@@ -575,9 +602,9 @@ else:
                 df_ledger_display['Asset Ticker'].str.contains(search_term, case=False) |
                 df_ledger_display['Trade Action'].str.contains(search_term, case=False)
             ]
-            st.dataframe(filtered_df, use_container_width=True, hide_index=True)
+            st.dataframe(filtered_df, width="stretch", hide_index=True)
         else:
-            st.dataframe(df_ledger_display, use_container_width=True, hide_index=True)
+            st.dataframe(df_ledger_display, width="stretch", hide_index=True)
             
     else:
         st.info("No trade transactions executed yet. This table will populate when portfolio rebalancing commands are executed.")

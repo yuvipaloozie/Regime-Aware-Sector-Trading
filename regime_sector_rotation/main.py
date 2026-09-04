@@ -12,6 +12,7 @@ from src.features import engineer_hmm_features, engineer_sector_features
 from src.model_hmm import run_walk_forward_hmm
 from src.model_strategy import (
     run_walk_forward_xgboost,
+    evaluate_rank_predictions,
     calculate_portfolio_weights,
     backtest_strategy
 )
@@ -22,11 +23,14 @@ class SimulatedTradeManager:
     Chronological trade manager that simulates portfolio execution.
     Logs transactions, weight allocations, and equity values to a unified CSV.
     """
-    def __init__(self, initial_cash=100000.0, log_path="data/trade_log.csv"):
+    def __init__(self, initial_cash=100000.0, log_path="data/trade_log.csv", transaction_cost_bps=0.0,
+                 cash_symbol="CASH"):
         self.cash = initial_cash
         self.portfolio_value = initial_cash
         self.holdings = {}  # Asset -> Shares
         self.log_path = log_path
+        self.transaction_cost_rate = transaction_cost_bps / 10000.0
+        self.cash_symbol = cash_symbol
         
         # Ensure log directory exists
         log_dir = os.path.dirname(self.log_path)
@@ -61,8 +65,12 @@ class SimulatedTradeManager:
         for asset, weight in target_weights.items():
             if weight <= 0.0:
                 continue
+            if asset == self.cash_symbol:
+                continue
                 
-            price = prices.get(asset, 1.0)
+            price = prices.get(asset)
+            if price is None or not np.isfinite(price) or price <= 0:
+                raise ValueError(f"Missing or invalid execution price for {asset} at {timestamp}")
             target_value = weight * self.portfolio_value
             target_shares = round(target_value / price, 2)
             
@@ -78,14 +86,18 @@ class SimulatedTradeManager:
                     "Vol": abs(diff_shares),
                     "CostBasis": price
                 })
+                notional = abs(diff_shares * price)
                 self.cash -= diff_shares * price
+                self.cash -= notional * self.transaction_cost_rate
                 
             new_holdings[asset] = target_shares
             
         # Sell off any asset no longer in the target weights
         for asset, shares in list(self.holdings.items()):
             if asset not in target_weights or target_weights[asset] <= 0.0:
-                price = prices.get(asset, 1.0)
+                price = prices.get(asset)
+                if price is None or not np.isfinite(price) or price <= 0:
+                    raise ValueError(f"Missing or invalid liquidation price for {asset} at {timestamp}")
                 trade_logs.append({
                     "Timestamp": timestamp,
                     "Asset": asset,
@@ -94,6 +106,7 @@ class SimulatedTradeManager:
                     "CostBasis": price
                 })
                 self.cash += shares * price
+                self.cash -= abs(shares * price) * self.transaction_cost_rate
                 
         self.holdings = new_holdings
         
@@ -114,21 +127,24 @@ class SimulatedTradeManager:
             if regime is not None and risk_scalar is not None:
                 f.write(f"{timestamp},REGIME_METRIC,STATE,{regime},{risk_scalar:.4f}\n")
 
-def execute_orchestration(weeks=26, force_refresh=False):
+def execute_orchestration(weeks=26, force_refresh=False, data_mode=None):
     print("=" * 70)
     print("      REGIME-CONDITIONED SECTOR ROTATION PRODUCTION ENGINE")
     print("=" * 70)
     
     # 1. Initialize Ingestion Pipeline
-    pipeline = DataPipeline()
+    pipeline = DataPipeline(data_mode=data_mode)
     config = pipeline.config
     
     # Check if cache files should be removed
     if force_refresh:
-        for f in ["yfinance_raw.csv", "fred_raw.csv"]:
+        for f in ["yfinance_adjusted.csv", "fred_point_in_time.csv"]:
             p = os.path.join(pipeline.raw_dir, f)
             if os.path.exists(p):
                 os.remove(p)
+            meta = f"{p}.meta.json"
+            if os.path.exists(meta):
+                os.remove(meta)
                 
     # 2. Ingest and Resample Data
     df_weekly = pipeline.get_processed_data()
@@ -152,6 +168,7 @@ def execute_orchestration(weeks=26, force_refresh=False):
     # 6. Fit Walk-Forward XGBRanker Model
     print("\nRunning Expanding Window Walk-Forward XGBRanker...")
     oos_results, feat_importance = run_walk_forward_xgboost(df_master, config)
+    rank_metrics = evaluate_rank_predictions(oos_results, config['portfolio']['top_n'])
     
     # Display feature importance
     print("\nGlobal Feature Importance (Information Gain):")
@@ -160,11 +177,13 @@ def execute_orchestration(weeks=26, force_refresh=False):
         
     # 7. Portfolio Allocations calculation
     print("\nCalculating dynamic hysteresis portfolio weights...")
-    weight_matrix = calculate_portfolio_weights(oos_results, df_master, config)
+    weight_matrix = calculate_portfolio_weights(oos_results, df_master, config, df_weekly=df_weekly)
     
     # 8. Standard Backtest & QuantStats Tearsheet Generation
     print("\nRunning strategy backtest & performance metrics verification...")
-    backtest = backtest_strategy(weight_matrix, df_master, df_weekly, config)
+    backtest = backtest_strategy(
+        weight_matrix, df_master, df_weekly, config, df_prices_daily=pipeline.daily_equity
+    )
     
     metrics = backtest['metrics']
     print("\n" + "=" * 50)
@@ -174,7 +193,10 @@ def execute_orchestration(weeks=26, force_refresh=False):
     print(f"Benchmark Total Return:     {metrics['Benchmark Total Return (%)']:.2f}%")
     print(f"Ann. Sharpe Ratio:          {metrics['Ann. Sharpe']:.2f}")
     print(f"Max Drawdown:               {metrics['Max Drawdown (%)']:.2f}%")
-    print(f"Avg 4-Week Turnover:        {metrics['Avg 4Wk Turnover (%)']:.2f}%")
+    print(f"Strategy CAGR:              {metrics['Strategy CAGR (%)']:.2f}%")
+    print(f"Avg Annual Turnover:        {metrics['Avg Annual Turnover (%)']:.2f}%")
+    print(f"Mean Rank IC:               {rank_metrics['Mean Rank IC']:.3f}")
+    print(f"Top-{config['portfolio']['top_n']} Hit Rate:            {rank_metrics['Top-N Hit Rate']:.1%}")
     print("=" * 50)
     
     # Export tearsheet
@@ -183,7 +205,9 @@ def execute_orchestration(weeks=26, force_refresh=False):
     # Save the entire backtest cumulative equity path (Strategy vs SPY benchmark)
     df_backtest_equity = pd.DataFrame({
         'Strategy': backtest['cum_strategy'],
-        'Benchmark': backtest['cum_benchmark']
+        'Benchmark': backtest['cum_benchmark'],
+        'SPY': backtest['cum_spy'],
+        'Momentum': backtest['cum_momentum'],
     })
     df_backtest_equity.index.name = 'Date'
     current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -193,18 +217,35 @@ def execute_orchestration(weeks=26, force_refresh=False):
     
     # Save the entire backtest sector weightings history
     weight_matrix.to_csv(os.path.join(data_dir, "backtest_weights.csv"))
+
+    pipeline.write_run_provenance(
+        os.path.join(data_dir, "run_manifest.json"),
+        extra={
+            "metrics": metrics,
+            "rank_metrics": rank_metrics,
+            "cost_sensitivity": backtest['cost_sensitivity'],
+            "feature_importance": feat_importance,
+            "signal_start": str(weight_matrix.index.min()),
+            "signal_end": str(weight_matrix.index.max()),
+            "execution_start": str(backtest['execution_schedule'].index.min()),
+            "execution_end": str(backtest['execution_schedule'].index.max()),
+        },
+    )
     
     # 9. Simulated Trade Manager Simulation
     # Run a chronological weekly simulation over the requested final weeks
-    sim_weeks = min(weeks, len(weight_matrix))
-    print(f"\nInitializing simulated trade manager for the last {sim_weeks} weeks...")
+    execution_schedule = backtest['execution_schedule']
+    execution_signal_dates = backtest['execution_signal_dates']
+    sim_weeks = min(weeks, len(execution_schedule))
+    print(f"\nInitializing simulated trade manager for the last {sim_weeks} rebalance periods...")
     
     # Get active prices for trade execution (close prices)
-    prices_df = df_weekly[config['sectors'] + ['TLT']]
-    spy_df = df_weekly[config['benchmarks']['equity']]
+    tradable_columns = [column for column in execution_schedule.columns if column != config['portfolio']['cash_symbol']]
+    prices_df = pipeline.daily_equity[tradable_columns]
+    spy_df = pipeline.daily_equity[config['benchmarks']['equity']]
     
     # Select dates to simulate
-    sim_dates = weight_matrix.index[-sim_weeks:]
+    sim_dates = execution_schedule.index[-sim_weeks:]
     spy_start_price = spy_df.loc[sim_dates[0]]
     
     # Clean previous logs to keep it a fresh walkthrough
@@ -214,19 +255,22 @@ def execute_orchestration(weeks=26, force_refresh=False):
         
     trade_manager = SimulatedTradeManager(
         initial_cash=config['portfolio']['initial_cash'],
-        log_path=log_path
+        log_path=log_path,
+        transaction_cost_bps=config['portfolio']['transaction_cost_bps'],
+        cash_symbol=config['portfolio']['cash_symbol'],
     )
     
     for idx, date in enumerate(sim_dates):
         date_str = str(date.date())
         # Target weights for this week
-        target_w = weight_matrix.loc[date].to_dict()
+        target_w = execution_schedule.loc[date].to_dict()
         # Active execution close prices
         prices_t = prices_df.loc[date].to_dict()
         spy_price_t = spy_df.loc[date]
         
         # Get regime and risk scalar for this date
-        day_master = df_master.xs(date, level='Date')
+        signal_date = execution_signal_dates.loc[date]
+        day_master = df_master.xs(signal_date, level='Date')
         regime_val = int(day_master['Smoothed_Regime'].iloc[0])
         risk_scalar_val = float(day_master['Risk_Scalar'].iloc[0])
         
@@ -248,9 +292,10 @@ def run_pipeline():
     parser = argparse.ArgumentParser(description="Unified Orchestration Entrypoint")
     parser.add_argument("--weeks", type=int, default=26, help="Number of final weeks to run simulation on")
     parser.add_argument("--force-refresh", action="store_true", help="Force download and ignore caches")
+    parser.add_argument("--demo", action="store_true", help="Explicitly use deterministic synthetic demo data")
     args = parser.parse_args()
     
-    execute_orchestration(weeks=args.weeks, force_refresh=args.force_refresh)
+    execute_orchestration(weeks=args.weeks, force_refresh=args.force_refresh, data_mode="demo" if args.demo else None)
 
 if __name__ == "__main__":
     run_pipeline()
