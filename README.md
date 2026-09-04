@@ -193,20 +193,6 @@ regime_sector_rotation/
 - Monitor missing/stale data, feature drift, regime drift, prediction dispersion, turnover, exposure, slippage, drawdown, and divergence between expected and actual fills.
 - Separate research, paper, and production credentials and require an approval gate before promoting a model version.
 
-### Leverage policy
-
-The current portfolio is long-only and fully funded: target weights sum to 100%, so user-controlled leverage is **not currently enabled**. That is the appropriate default.
-
-If leverage is added, it should be volatility-targeted rather than a free-form multiplier. A robust implementation would:
-
-1. estimate ex-ante portfolio volatility using only trailing information;
-2. scale toward a configurable volatility target;
-3. cap gross exposure conservatively (for example, 1.0× by default and no more than 1.25–1.50× in research/paper mode);
-4. reduce exposure during stressed regimes, high correlation, stale data, or drawdown breaches;
-5. model financing rates, margin requirements, borrow availability, gap risk, and leveraged transaction costs;
-6. prohibit leverage in live mode until a minimum paper-trading period and risk review have passed.
-
-A Streamlit leverage control should therefore be labeled **research scenario**, bounded, and excluded from broker execution unless server-side risk checks independently approve it.
 
 ## Tests
 
