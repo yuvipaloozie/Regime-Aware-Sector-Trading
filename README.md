@@ -1,8 +1,11 @@
 # Regime-Aware Sector Rotation
 
-Research framework for allocating across US sector ETFs using a causal macro-regime filter and a purged, walk-forward learning-to-rank model.
+A research framework for allocating across US sector ETFs. A Gaussian HMM estimates market regimes, and a purged, walk-forward XGBRanker ranks sectors by expected relative returns.
 
 ![Python](https://img.shields.io/badge/Python-3.10--3.12-3776AB?style=for-the-badge&logo=python&logoColor=white)
+![Gaussian HMM](https://img.shields.io/badge/Gaussian%20HMM-203858?style=for-the-badge)
+![XGBRanker](https://img.shields.io/badge/XGBRanker-203858?style=for-the-badge)
+![Walk-forward validation](https://img.shields.io/badge/Walk--forward%20validation-203858?style=for-the-badge)
 ![CI](https://github.com/yuvipaloozie/Regime-Aware-Sector-Trading/actions/workflows/ci.yml/badge.svg)
 ![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)
 
@@ -16,7 +19,7 @@ Financial time series are non-stationary: their means, variances, and correlatio
 
 - **The states:** latent macro and market conditions are inferred from returns, volatility, the yield curve, financial stress, and inflation.
 - **The rotation:** sectors have different sensitivities to those conditions, so the strategy ranks them cross-sectionally rather than forecasting absolute market direction.
-- **The engineering premise:** causal data handling and reproducible execution matter more than adding model complexity.
+- **The engineering premise:** preserve the information available at each signal date and record enough detail to reproduce each run.
 
 ## What the system does
 
@@ -44,9 +47,9 @@ Financial time series are non-stationary: their means, variances, and correlatio
 
 ### 1. Macro regime identification
 
-An anchored Gaussian HMM sorts fitted states by volatility so state numbering remains interpretable. The updated implementation uses causal forward probabilities: a later observation cannot revise an earlier out-of-sample state. Exposure is probability-weighted rather than driven by a single brittle hard label.
+An anchored Gaussian HMM sorts fitted states by volatility so state numbering remains interpretable. The updated implementation uses causal forward probabilities: a later observation cannot revise an earlier out-of-sample state. Exposure uses state probabilities so uncertain regime assignments remain part of the allocation decision.
 
-The following figures are the original project artifacts and remain useful illustrations of the model. They are historical snapshots, not regenerated proof of the revised pipeline.
+These original figures illustrate the model and its earlier results. They are historical snapshots and have not been regenerated with the revised pipeline.
 
 ![Historical inferred regime timeline](assets/regime-history.png)
 
@@ -60,7 +63,7 @@ The second stage uses `XGBRanker` to order the eleven sector ETFs by expected fo
 
 ### 3. Portfolio construction and execution
 
-The top-ranked sectors are selected with a turnover buffer. Regime probabilities scale equity exposure, while the remaining budget is allocated to the strongest positive-trend defensive asset among SHY, IEF, and TLT—or to cash when none qualifies. Signals execute on a later market date and are valued daily.
+The top-ranked sectors are selected with a turnover buffer. Regime probabilities scale equity exposure, while the remaining budget is allocated to the strongest positive-trend defensive asset among SHY, IEF, and TLT, or to cash when none qualifies. Signals execute on a later market date and are valued daily.
 
 ## Installation
 
@@ -130,9 +133,9 @@ Each run reports:
 
 Previously committed headline statistics were produced by an earlier pipeline and are not treated as current evidence. Regenerate artifacts after configuring point-in-time data, then assess the new manifest and tearsheet.
 
-### Original project results — legacy snapshot
+### Original project results: legacy snapshot
 
-These are the figures originally presented with the project. They preserve the original research narrative and screenshots, but they came from the pre-integrity-refactor pipeline and have **not** been reproduced by the revised causal pipeline. They must not be presented as current validated performance.
+The original run reported the figures below. They came from the pre-integrity-refactor pipeline and have **not** been reproduced by the revised causal pipeline. Treat them as legacy results, not current validated performance.
 
 | Metric | S&P 500 (SPY) | Static equal weight | Original regime-aware run |
 | :--- | ---: | ---: | ---: |
@@ -175,7 +178,7 @@ regime_sector_rotation/
 
 ## Production and portfolio roadmap
 
-### Recruiter-ready engineering
+### Engineering workflow
 
 - Package the engine behind typed interfaces and a CLI, with Ruff, mypy, pytest coverage thresholds, pre-commit hooks, and generated API documentation.
 - Add deterministic unit fixtures, golden backtest tests, property tests for weight/risk invariants, and integration tests for provider schema changes.
@@ -204,3 +207,4 @@ CI runs these checks on Python 3.10 and 3.12.
 ## License
 
 MIT
+
