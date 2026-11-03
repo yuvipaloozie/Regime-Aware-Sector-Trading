@@ -3,9 +3,12 @@
 A research framework for allocating across US sector ETFs. A Gaussian HMM estimates market regimes, and a purged, walk-forward XGBRanker ranks sectors by expected relative returns.
 
 ![Python](https://img.shields.io/badge/Python-3.10--3.12-3776AB?style=for-the-badge&logo=python&logoColor=white)
-![Gaussian HMM](https://img.shields.io/badge/Gaussian%20HMM-203858?style=for-the-badge)
-![XGBRanker](https://img.shields.io/badge/XGBRanker-203858?style=for-the-badge)
-![Walk-forward validation](https://img.shields.io/badge/Walk--forward%20validation-203858?style=for-the-badge)
+![hmmlearn](https://img.shields.io/badge/hmmlearn-32864B?style=for-the-badge)
+![GaussianHMM](https://img.shields.io/badge/GaussianHMM-32864B?style=for-the-badge)
+![XGBRanker](https://img.shields.io/badge/XGBRanker-E87500?style=for-the-badge)
+![pandas](https://img.shields.io/badge/pandas-150458?style=for-the-badge&logo=pandas&logoColor=white)
+![Streamlit](https://img.shields.io/badge/Streamlit-FF4B4B?style=for-the-badge&logo=streamlit&logoColor=white)
+
 ![CI](https://github.com/yuvipaloozie/Regime-Aware-Sector-Trading/actions/workflows/ci.yml/badge.svg)
 ![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)
 
@@ -193,7 +196,6 @@ regime_sector_rotation/
 - Add a scheduler, broker paper-account adapter, order reconciliation, retry policy, alerts, health checks, and a manual kill switch.
 - Monitor missing/stale data, feature drift, regime drift, prediction dispersion, turnover, exposure, slippage, drawdown, and divergence between expected and actual fills.
 - Separate research, paper, and production credentials and require an approval gate before promoting a model version.
-
 
 ## Tests
 
