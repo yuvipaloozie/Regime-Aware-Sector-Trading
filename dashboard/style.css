@@ -1,0 +1,143 @@
+:root {
+  color-scheme: dark;
+  --page: #0d0f12;
+  --panel: #12151a;
+  --toolbar: #1a2028;
+  --line: #343940;
+  --grid: #272c33;
+  --ink: #ecedef;
+  --muted: #a8afb9;
+  --strategy: #f3bb73;
+  --spy: #9abbfc;
+  --sectors: #b7bac4;
+  --low: #71c5a3;
+  --moderate: #80b8cf;
+  --high: #edb35c;
+  --extreme: #f58e99;
+  --defensive: #b5aafe;
+  font: 100%/1.4 "Segoe UI", sans-serif;
+  background: var(--page);
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  scrollbar-color: #505862 var(--panel);
+}
+* { box-sizing: border-box; }
+body { margin: 0; }
+main { max-width: 1640px; margin-inline: auto; padding: 0 clamp(12px, 2.2vw, 34px) 22px; }
+h1, h2, h3, p { margin: 0; }
+h1 { font-size: 1.25rem; font-weight: 650; letter-spacing: -.02em; }
+h2, h3 { font-size: .9375rem; line-height: 1.3; font-weight: 650; }
+p { color: var(--muted); line-height: 1.55; }
+.page-header, .section-header, .identity, .archive-date {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.page-header, .section-header { justify-content: space-between; }
+.page-header {
+  min-height: 66px;
+  margin-bottom: 14px;
+  border-bottom: 1px solid var(--line);
+}
+.identity span, .archive-date { color: var(--muted); font-size: .8125rem; }
+.identity span { padding-left: 12px; border-left: 1px solid var(--line); }
+.archive-date strong { color: var(--strategy); font-size: .8125rem; font-weight: 600; }
+.workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 2.05fr) minmax(370px, 1fr);
+  border: 1px solid var(--line);
+  background: var(--panel);
+}
+.performance, .execution { min-width: 0; }
+.execution { border-left: 1px solid var(--line); }
+.section-header { min-height: 46px; padding: 7px 14px; background: var(--toolbar); }
+.metrics-header, .fills .section-header { border-top: 1px solid var(--line); }
+.legend, .regime-legend {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 17px;
+  padding: 9px 14px;
+  color: var(--muted);
+  font-size: .8125rem;
+}
+.legend { border-top: 1px solid var(--line); }
+.regime-legend { border-top: 1px solid var(--grid); padding-block: 10px; }
+.legend label, .key { display: inline-flex; align-items: center; gap: 7px; }
+.legend label { cursor: pointer; }
+.key::before { content: ""; flex: none; width: 9px; height: 7px; background: var(--key); }
+.legend .key::before { width: 14px; height: 0; background: none; border-top: 2px var(--stroke) var(--key); }
+.legend input { accent-color: var(--strategy); margin: 0; width: 15px; height: 15px; }
+.legend input:not(:checked) + .key { color: var(--muted); opacity: .74; }
+.chart { height: clamp(320px, 33vw, 500px); }
+.ranges, .activity-tabs { display: flex; gap: 2px; }
+button, select {
+  color: var(--ink);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  min-height: 34px;
+  font: inherit;
+  font-size: .8125rem;
+}
+button, select, summary { cursor: pointer; }
+.ranges button { min-width: 34px; min-height: 31px; border-color: transparent; background: transparent; }
+.ranges button[data-state="on"] { border-color: #53678a; background: #253550; color: var(--spy); }
+.ranges button:hover[data-state="off"], select:hover { background: #262d34; }
+.activity-tabs { border-bottom: 1px solid var(--line); padding-inline: 10px; }
+.activity-tabs button { border: 0; border-bottom: 2px solid transparent; border-radius: 0; padding-inline: 8px; color: var(--muted); }
+.activity-tabs button[data-state="active"] { color: var(--spy); border-bottom-color: var(--spy); }
+.activity-tabs button:hover { color: var(--ink); }
+select { padding: 4px 8px; max-width: 100%; }
+:focus-visible { outline: 2px solid var(--spy); outline-offset: 2px; }
+::selection { background: #694c2a; color: #fff; }
+.table-region { overflow: auto; }
+.table-region:focus-visible { outline-offset: -2px; }
+table { border-collapse: collapse; width: 100%; font-size: .8125rem; }
+td, th { padding: 9px 10px; text-align: right; border-top: 1px solid var(--grid); white-space: nowrap; }
+td:first-child, th:first-child { text-align: left; padding-left: 14px; }
+td:last-child, th:last-child { padding-right: 14px; }
+th { font-weight: 600; color: var(--muted); }
+tbody tr:hover { background: #1c232a; }
+.series-name { color: var(--series); font-weight: 650; }
+.selection { padding: 11px 14px; min-height: 42px; color: var(--muted); font-size: .875rem; border-block: 1px solid var(--line); }
+.allocation { padding: 12px 14px; }
+.allocation ul { padding: 0; list-style: none; margin: 8px 0 0; }
+.allocation li {
+  display: grid;
+  grid-template-columns: 3.3rem minmax(25px, 1fr) 4.1rem;
+  align-items: center;
+  gap: 8px;
+  min-height: 26px;
+  font-size: .875rem;
+}
+.allocation li span:last-child { text-align: right; }
+meter { width: 100%; height: 12px; }
+meter::-webkit-meter-bar { border: none; border-radius: 0; background: var(--grid); }
+meter::-webkit-meter-optimum-value { background: var(--strategy); }
+meter.defensive::-webkit-meter-optimum-value { background: var(--defensive); }
+meter::-moz-meter-bar { background: var(--strategy); }
+meter.defensive::-moz-meter-bar { background: var(--defensive); }
+.fill-scroll { max-height: 300px; }
+.fill-scroll th { position: sticky; top: 0; background: var(--panel); }
+.buy { color: var(--low); }
+.sell { color: var(--extreme); }
+.download { display: inline-block; margin: 11px 14px 13px; color: var(--spy); font-size: .8125rem; text-underline-offset: 3px; }
+details { margin-top: 11px; color: var(--muted); font-size: .875rem; }
+summary { width: fit-content; padding: 5px 2px; }
+details p { margin: 9px 2px; max-width: 72ch; }
+@media (max-width: 980px) {
+  .workspace { grid-template-columns: minmax(0, 1fr); }
+  .execution { border-top: 1px solid var(--line); border-left: 0; }
+}
+@media (max-width: 680px) {
+  .page-header, .identity, .archive-date { flex-wrap: wrap; }
+  .page-header { padding-block: 12px; gap: 5px 12px; }
+  .identity { gap: 3px 12px; }
+  .archive-date { gap: 4px 10px; }
+  .section-header, .legend, .regime-legend { padding-inline: 10px; }
+  .legend, .regime-legend { gap: 7px 12px; }
+  .chart { height: 295px; }
+  .ranges button, select { min-height: 38px; }
+  .fill-scroll td, .fill-scroll th { padding-inline: 7px; }
+}

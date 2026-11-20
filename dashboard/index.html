@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <meta name="description" content="Explore the historical XGBoost and HMM sector rotation backtest, allocations, regimes, and simulated fills.">
+  <title>Sector Rotation Lab</title>
+  <link rel="icon" href="data:,">
+  <script type="module" src="./terminal.js"></script>
+</head>
+<body>
+  <main>
+    <header class="page-header">
+      <div class="identity"><h1>Sector Rotation Lab</h1><span>XGBoost + four-state HMM</span></div>
+      <div class="archive-date"><strong>Backtest archive</strong><span>Nov 14, 2014 to Apr 17, 2026</span></div>
+    </header>
+    <p id="status" role="status">Loading backtest…</p>
+    <div id="terminal" hidden>
+      <div class="workspace">
+      <section class="performance" aria-labelledby="performance-title">
+        <div class="section-header">
+          <h2 id="performance-title">Portfolio value</h2>
+          <div id="ranges"></div>
+        </div>
+        <div class="legend" id="curves"></div>
+        <div id="equity" class="chart" aria-label="Growth of $100,000 for the strategy and benchmarks"></div>
+        <div class="regime-legend" id="regime-legend"></div>
+        <div class="section-header metrics-header"><h2>Full-period performance</h2></div>
+        <div class="table-region" tabindex="0" role="region" aria-label="Full backtest metrics">
+          <table><thead><tr><th scope="col">Portfolio</th><th scope="col">Total return</th><th scope="col">CAGR</th><th scope="col">Sharpe</th><th scope="col">Sortino</th><th scope="col">Max drawdown</th></tr></thead><tbody id="metrics"></tbody></table>
+        </div>
+      </section>
+      <section class="execution" aria-labelledby="rebalance-title">
+          <div class="section-header rebalance-header">
+            <h2 id="rebalance-title"><label for="date">Rebalance</label></h2><select id="date"></select>
+          </div>
+          <div class="selection" id="selection" aria-live="polite"></div>
+          <div class="allocation"><h3>Target weights</h3><ul id="weights"></ul></div>
+          <div class="fills">
+            <div class="section-header"><h3>Simulated fills</h3></div>
+            <div id="activity"></div>
+            <a class="download" id="download" download="simulated-fills.csv">Download fills CSV</a>
+          </div>
+      </section>
+      </div>
+      <details>
+        <summary>About the backtest</summary>
+        <p>The HMM set sector equity exposure. XGBoost ranked the sector ETFs, and the original strategy invested the rest in TLT.</p>
+        <p>The saved benchmark compounds equal-weight sector returns. The SPY line uses adjusted closes on the same dates. Sharpe and Sortino use 13 four-week periods a year. Drawdown uses the saved four-week marks.</p>
+        <p>The original HMM could use later observations inside each prediction block. The ranker also allowed a training label to reach the first test date. The chart is a historical record of that run. Saved regimes and simulated fills begin May 17, 2024.</p>
+      </details>
+    </div>
+  </main>
+</body>
+</html>

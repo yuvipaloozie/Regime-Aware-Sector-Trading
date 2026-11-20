@@ -1,0 +1,19 @@
+{
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --base ./",
+    "build": "vite build --base ./",
+    "preview": "vite preview --base ./"
+  },
+  "dependencies": {
+    "@radix-ui/react-tabs": "1.2.1",
+    "@radix-ui/react-toggle-group": "1.2.1",
+    "plotly.js-dist-min": "3.4.0",
+    "react": "19.3.1",
+    "react-dom": "19.3.1"
+  },
+  "devDependencies": {
+    "vite": "7.3.8"
+  }
+}
